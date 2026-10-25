@@ -206,11 +206,16 @@ function jumpExtract(key: string) {
   void reader.jumpWithHighlight(page, quote)
 }
 
-/** 从回答文本中取 [P.x] 前邻近语句作为高亮候选（多为译文，匹配失败自然降级为仅跳页） */
+/** 从回答文本中取高亮候选：优先 [P.x] 邻近的原样引号片段（往往是原文摘录，可在文本层命中），
+ *  退化为引用标记前的语句（多为译文，匹配失败自然降级为仅跳页）。 */
 function quoteNearRef(content: string, refPage: number): string {
   const re = new RegExp(`\\[P\\.${refPage}\\]`, 'g')
   const m = re.exec(content)
-  if (!m || m.index === 0) return ''
+  if (!m) return ''
+  const zoneStart = Math.max(0, m.index - 160)
+  const zone = content.slice(zoneStart, Math.min(content.length, m.index + 60))
+  const quoted = zone.match(/[「“"]([^」”"]{6,80})[」”"]/)
+  if (quoted) return quoted[1].trim()
   const before = content.slice(Math.max(0, m.index - 60), m.index)
   const cut = Math.max(before.lastIndexOf('。'), before.lastIndexOf('；'), before.lastIndexOf('\n'), -1)
   const frag = (cut >= 0 ? before.slice(cut + 1) : before).replace(/[""「」'']/g, '').trim()
