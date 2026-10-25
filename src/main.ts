@@ -4,6 +4,7 @@ import App from './App.vue'
 import router from './router'
 import '@phosphor-icons/web/regular/style.css'
 import '@phosphor-icons/web/fill/style.css'
+import 'katex/dist/katex.min.css'
 import './styles/tokens.css'
 
 const app = createApp(App)

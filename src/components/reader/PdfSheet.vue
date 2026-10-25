@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { TextLayer } from 'pdfjs-dist'
 import type { RenderTask } from 'pdfjs-dist'
 import NoteDialog from '../common/NoteDialog.vue'
+import FormulaDialog from '../formula/FormulaDialog.vue'
 import SelectionMenu from './SelectionMenu.vue'
 import { useAiStore } from '../../stores/ai'
 import { useLibraryStore } from '../../stores/library'
@@ -140,8 +141,8 @@ function onDocMouseDown(e: MouseEvent) {
   }
 }
 
-/** 选区菜单动作：解释/翻译 → 伴读问答；记笔记 → 弹层 */
-function onSelAction(kind: 'explain' | 'translate' | 'note') {
+/** 选区菜单动作：解释/翻译 → 伴读问答；记笔记 → 弹层；公式 → 公式解释 */
+function onSelAction(kind: 'explain' | 'translate' | 'note' | 'formula') {
   const text = reader.selectedText
   const page = reader.selectedPage
   menu.value = null
@@ -150,8 +151,15 @@ function onSelAction(kind: 'explain' | 'translate' | 'note') {
     noteDraft.value = { page, quote: text.slice(0, 400) }
     return
   }
+  if (kind === 'formula') {
+    formulaDraft.value = { text, page }
+    return
+  }
   void ai.askSelection(kind, text, page)
 }
+
+/* ---------- 公式解释（Step 10） ---------- */
+const formulaDraft = ref<{ text: string; page: number } | null>(null)
 
 /* ---------- 笔记 ---------- */
 const noteDraft = ref<{ page: number; quote: string } | null>(null)
@@ -217,7 +225,7 @@ const selWrapStyle = computed(() => ({
       class="sel-menu-wrap"
       :style="selWrapStyle"
     >
-      <SelectionMenu @action="onSelAction" />
+      <SelectionMenu :text="reader.selectedText" @action="onSelAction" />
     </div>
     <NoteDialog
       v-if="noteDraft"
@@ -225,6 +233,12 @@ const selWrapStyle = computed(() => ({
       :quote="noteDraft.quote"
       @close="noteDraft = null"
       @save="saveNote"
+    />
+    <FormulaDialog
+      v-if="formulaDraft"
+      :text="formulaDraft.text"
+      :page="formulaDraft.page"
+      @close="formulaDraft = null"
     />
   </teleport>
 </template>
