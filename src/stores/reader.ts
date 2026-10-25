@@ -24,6 +24,7 @@ export const useReaderStore = defineStore('reader', {
     selectedPage: 0,
     highlightQuote: '',
     highlightTick: 0, // 每次递增触发一次文本层高亮
+    regionMode: false, // 框选图表模式（Step 11）
   }),
   actions: {
     async open(paperId: string) {

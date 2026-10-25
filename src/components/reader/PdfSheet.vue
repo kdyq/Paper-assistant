@@ -4,6 +4,7 @@ import { TextLayer } from 'pdfjs-dist'
 import type { RenderTask } from 'pdfjs-dist'
 import NoteDialog from '../common/NoteDialog.vue'
 import FormulaDialog from '../formula/FormulaDialog.vue'
+import FigureDialog from '../formula/FigureDialog.vue'
 import SelectionMenu from './SelectionMenu.vue'
 import { useAiStore } from '../../stores/ai'
 import { useLibraryStore } from '../../stores/library'
@@ -161,6 +162,80 @@ function onSelAction(kind: 'explain' | 'translate' | 'note' | 'formula') {
 /* ---------- 公式解释（Step 10） ---------- */
 const formulaDraft = ref<{ text: string; page: number } | null>(null)
 
+/* ---------- 框选图表（Step 11） ---------- */
+const figureDraft = ref<{ image: string; page: number } | null>(null)
+const drag = ref<{ x0: number; y0: number; x1: number; y1: number } | null>(null)
+const pageEl = ref<HTMLElement | null>(null)
+
+/** 依据拖拽矩形从渲染 canvas 裁剪截图（长边 ≤1280，JPEG 压缩） */
+function cropCanvas(): string | null {
+  const canvas = canvasEl.value
+  const box = pageEl.value
+  if (!canvas || !box || !drag.value) return null
+  const boxRect = box.getBoundingClientRect()
+  const x0 = Math.min(drag.value.x0, drag.value.x1) - boxRect.left
+  const y0 = Math.min(drag.value.y0, drag.value.y1) - boxRect.top
+  const x1 = Math.max(drag.value.x0, drag.value.x1) - boxRect.left
+  const y1 = Math.max(drag.value.y0, drag.value.y1) - boxRect.top
+  const w = x1 - x0
+  const h = y1 - y0
+  if (w < 30 || h < 30) return null
+  const dpr = canvas.width / (parseFloat(canvas.style.width) || canvas.clientWidth || 1)
+  const sx = Math.max(0, Math.round(x0 * dpr))
+  const sy = Math.max(0, Math.round(y0 * dpr))
+  const sw = Math.min(canvas.width - sx, Math.round(w * dpr))
+  const sh = Math.min(canvas.height - sy, Math.round(h * dpr))
+  if (sw < 20 || sh < 20) return null
+  const scale = Math.min(1, 1280 / Math.max(sw, sh))
+  const off = document.createElement('canvas')
+  off.width = Math.round(sw * scale)
+  off.height = Math.round(sh * scale)
+  const ctx = off.getContext('2d')
+  if (!ctx) return null
+  ctx.drawImage(canvas, sx, sy, sw, sh, 0, 0, off.width, off.height)
+  return off.toDataURL('image/jpeg', 0.9)
+}
+
+function onRegionDown(e: MouseEvent) {
+  if (!reader.regionMode) return
+  e.preventDefault()
+  drag.value = { x0: e.clientX, y0: e.clientY, x1: e.clientX, y1: e.clientY }
+}
+function onRegionMove(e: MouseEvent) {
+  if (!drag.value) return
+  drag.value = { ...drag.value, x1: e.clientX, y1: e.clientY }
+}
+function onRegionUp() {
+  if (!drag.value) return
+  const image = cropCanvas()
+  drag.value = null
+  reader.regionMode = false
+  if (image) figureDraft.value = { image, page: reader.pageNo }
+}
+
+const dragStyle = computed(() => {
+  if (!drag.value) return {}
+  const x = Math.min(drag.value.x0, drag.value.x1)
+  const y = Math.min(drag.value.y0, drag.value.y1)
+  const w = Math.abs(drag.value.x1 - drag.value.x0)
+  const h = Math.abs(drag.value.y1 - drag.value.y0)
+  return { left: `${x}px`, top: `${y}px`, width: `${w}px`, height: `${h}px` }
+})
+
+function onRegionKey(e: KeyboardEvent) {
+  if (e.key === 'Escape' && reader.regionMode) {
+    reader.regionMode = false
+    drag.value = null
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('keydown', onRegionKey)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', onRegionKey)
+})
+
 /* ---------- 笔记 ---------- */
 const noteDraft = ref<{ page: number; quote: string } | null>(null)
 
@@ -205,7 +280,7 @@ const selWrapStyle = computed(() => ({
       · 论文页 {{ reader.pageNo }} / {{ reader.totalPages }}
     </div>
     <div ref="bodyEl" class="pdf-body">
-      <div class="pdf-page" @mouseup="onMouseUp">
+      <div ref="pageEl" class="pdf-page" :class="{ 'region-mode': reader.regionMode }" @mouseup="onMouseUp">
         <canvas ref="canvasEl" data-testid="pdf-canvas"></canvas>
         <div ref="textEl" class="pdf-textlayer" data-testid="pdf-textlayer"></div>
         <div v-if="reader.rendering" class="pdf-loading" data-testid="pdf-loading">
@@ -213,6 +288,20 @@ const selWrapStyle = computed(() => ({
         </div>
       </div>
     </div>
+    <!-- 框选遮罩（fixed 全视口，承载拖拽事件） -->
+    <teleport to="body">
+      <div
+        v-if="reader.regionMode"
+        class="region-mask"
+        data-testid="region-mask"
+        @mousedown="onRegionDown"
+        @mousemove="onRegionMove"
+        @mouseup="onRegionUp"
+      >
+        <div v-if="drag" class="region-rect" :style="dragStyle"></div>
+        <div class="region-tip"><i class="ph ph-crop"></i> 拖拽框选图表区域，Esc 取消</div>
+      </div>
+    </teleport>
     <div v-if="paper?.textEmpty" class="notice-bar">
       <i class="ph ph-warning-diamond"></i>
       <span>扫描版文献：无文本层，不支持选词与 AI 定位。</span>
@@ -239,6 +328,13 @@ const selWrapStyle = computed(() => ({
       :text="formulaDraft.text"
       :page="formulaDraft.page"
       @close="formulaDraft = null"
+    />
+    <FigureDialog
+      v-if="figureDraft"
+      :image="figureDraft.image"
+      :page="figureDraft.page"
+      @close="figureDraft = null"
+      @saved="notes.focusTick++"
     />
   </teleport>
 </template>

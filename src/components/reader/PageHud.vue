@@ -16,6 +16,18 @@ const reader = useReaderStore()
 
     <span class="hud-sep"></span>
 
+    <button
+      class="icon-btn"
+      :class="{ 'region-on': reader.regionMode }"
+      title="框选图表请 AI 解读"
+      data-testid="hud-region"
+      @click="reader.regionMode = !reader.regionMode"
+    >
+      <i class="ph ph-crop"></i>
+    </button>
+
+    <span class="hud-sep"></span>
+
     <button class="icon-btn" title="缩小" :disabled="reader.zoom <= 0.5" data-testid="hud-zoom-out" @click="reader.zoomOut()">
       <i class="ph ph-minus"></i>
     </button>
