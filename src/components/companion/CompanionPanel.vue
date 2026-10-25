@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useSettingsStore } from '../../stores/settings'
 import { safeFrom } from '../../utils/anim'
 
-// 右栏伴读面板。Step 1 为骨架 + 空态；提取/问答/笔记分别于 Step 5/6/7 接入。
+// 右栏伴读面板。提取/问答/笔记分别于 Step 5/6/7 接入。
+const settings = useSettingsStore()
 const tab = ref<'extract' | 'chat' | 'notes'>('extract')
 
 const TABS = [
@@ -33,7 +35,7 @@ function switchTab(key: 'extract' | 'chat' | 'notes') {
     <div class="ai-head" data-anim="aihead">
       <div class="ai-head-top">
         <span class="ai-head-title">伴读</span>
-        <span class="model-chip">deepseek-v4.1-flash</span>
+        <span class="model-chip" data-testid="model-chip">{{ settings.effectiveAi.model || '未配置模型' }}</span>
       </div>
       <div class="ai-head-sub">对当前论文提问，回答附原文定位</div>
     </div>
