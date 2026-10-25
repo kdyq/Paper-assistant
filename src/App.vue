@@ -61,6 +61,9 @@ onBeforeUnmount(() => {
       <kbd>Ctrl K</kbd>
     </div>
     <div class="topbar-right">
+      <router-link to="/compare" class="icon-btn" title="文献对比矩阵" data-testid="btn-compare">
+        <i class="ph ph-scales"></i>
+      </router-link>
       <router-link to="/settings" class="icon-btn" title="设置" data-testid="btn-settings">
         <i class="ph ph-gear-six"></i>
       </router-link>
