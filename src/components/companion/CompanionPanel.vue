@@ -145,6 +145,31 @@ function fmtNoteTime(ts: number): string {
     ? d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
     : d.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })
 }
+
+/* ---------- 引用定位跳转（Step 9） ---------- */
+
+/** 提取卡出处点击：跳到要素页码；refs 中有对应原文引文则尝试高亮 */
+function jumpExtract(key: string) {
+  const page = ex.value.data?.pages?.[key]
+  if (!page) return
+  const quote = ex.value.data?.refs?.find((r) => r.page === page)?.quote ?? ''
+  void reader.jumpWithHighlight(page, quote)
+}
+
+/** 从回答文本中取 [P.x] 前邻近语句作为高亮候选（多为译文，匹配失败自然降级为仅跳页） */
+function quoteNearRef(content: string, refPage: number): string {
+  const re = new RegExp(`\\[P\\.${refPage}\\]`, 'g')
+  const m = re.exec(content)
+  if (!m || m.index === 0) return ''
+  const before = content.slice(Math.max(0, m.index - 60), m.index)
+  const cut = Math.max(before.lastIndexOf('。'), before.lastIndexOf('；'), before.lastIndexOf('\n'), -1)
+  const frag = (cut >= 0 ? before.slice(cut + 1) : before).replace(/[""「」'']/g, '').trim()
+  return frag.length >= 6 ? frag.slice(0, 80) : ''
+}
+
+function jumpChatRef(content: string, refPage: number) {
+  void reader.jumpWithHighlight(refPage, quoteNearRef(content, refPage))
+}
 </script>
 
 <template>
@@ -227,7 +252,16 @@ function fmtNoteTime(ts: number): string {
             <div class="extract-head">
               <span class="extract-num">{{ c.num }}</span>
               <span class="extract-title">{{ c.title }}</span>
-              <span class="extract-loc" :data-testid="`loc-${c.key}`">{{ cardPage(c.key) || (ex.status === 'running' ? '…' : '') }}</span>
+              <button
+                v-if="cardPage(c.key)"
+                class="extract-loc loc-btn"
+                :data-testid="`loc-${c.key}`"
+                title="跳转原文"
+                @click="jumpExtract(c.key)"
+              >
+                {{ cardPage(c.key) }}
+              </button>
+              <span v-else class="extract-loc" :data-testid="`loc-${c.key}`">{{ ex.status === 'running' ? '…' : '' }}</span>
             </div>
             <div v-if="c.key === 'contribution'" class="extract-text">
               <ol v-if="ex.data?.contribution?.length">
@@ -283,7 +317,16 @@ function fmtNoteTime(ts: number): string {
             <div class="who">{{ m.role === 'user' ? '我' : '伴读' }}</div>
             <div class="txt">{{ m.content }}</div>
             <div v-if="m.role === 'assistant' && m.refs.length" class="refs-line">
-              <span v-for="r in m.refs" :key="r" class="ref-chip">P.{{ r }}</span>
+              <button
+                v-for="r in m.refs"
+                :key="r"
+                class="ref-chip"
+                :data-testid="`chat-ref-${r}`"
+                title="跳转原文"
+                @click="jumpChatRef(m.content, r)"
+              >
+                P.{{ r }}
+              </button>
             </div>
           </div>
         </div>

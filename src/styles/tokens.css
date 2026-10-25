@@ -588,6 +588,15 @@ button {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+.extract-loc.loc-btn {
+  cursor: pointer;
+  color: var(--accent-deep);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.extract-loc.loc-btn:hover {
+  color: var(--accent);
+}
 .extract-text {
   font-size: 12.5px;
   line-height: 1.75;
@@ -652,6 +661,19 @@ button {
   cursor: pointer;
   text-decoration: underline;
   text-underline-offset: 3px;
+}
+.ref-chip {
+  font-size: 10px;
+  color: var(--accent-deep);
+  border: 1px solid var(--accent);
+  background: var(--accent-wash);
+  border-radius: 3px;
+  padding: 0 6px;
+  cursor: pointer;
+}
+.ref-chip:hover {
+  color: #fdfaf3;
+  background: var(--accent);
 }
 
 /* 笔记卡 */
