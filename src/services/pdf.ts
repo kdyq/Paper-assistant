@@ -9,6 +9,25 @@ pdfjs.GlobalWorkerOptions.workerSrc = workerUrl
 
 export type PdfDoc = pdfjs.PDFDocumentProxy
 
+/** 已打开文档缓存（pdfjs 文档重开销大，按 paperId 复用；销毁须走 loadingTask.destroy） */
+const docCache = new Map<string, { task: pdfjs.PDFDocumentLoadingTask; doc: PdfDoc }>()
+
+export async function getPaperDoc(paperId: string, blob: Blob): Promise<PdfDoc> {
+  const hit = docCache.get(paperId)
+  if (hit && !hit.task.destroyed) return hit.doc
+  const buf = await blob.arrayBuffer()
+  const task = pdfjs.getDocument({ data: buf })
+  const doc = await task.promise
+  docCache.set(paperId, { task, doc })
+  return doc
+}
+
+export function dropPaperDoc(paperId: string) {
+  const hit = docCache.get(paperId)
+  if (hit && !hit.task.destroyed) void hit.task.destroy()
+  docCache.delete(paperId)
+}
+
 export async function openPdf(data: ArrayBuffer): Promise<PdfDoc> {
   // pdfjs 会 transfer/detach 传入的 ArrayBuffer，调用方需要保留原数据时须先复制
   const task = pdfjs.getDocument({ data })

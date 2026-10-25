@@ -941,3 +941,126 @@ textarea.field {
   letter-spacing: 0.03em;
 }
 
+/* ============ PDF 阅读器 ============ */
+.sheet.pdf-sheet {
+  padding: 34px 44px 48px;
+}
+.pdf-body {
+  margin-top: 14px;
+}
+.pdf-page {
+  position: relative;
+  width: max-content;
+  margin: 0 auto;
+  max-width: 100%;
+  background: var(--sheet);
+}
+.pdf-page canvas {
+  display: block;
+  border: 1px solid var(--line-2);
+  border-radius: 2px;
+}
+.pdf-textlayer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  line-height: 1;
+  text-align: initial;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  user-select: text;
+}
+.pdf-textlayer span,
+.pdf-textlayer br {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+  margin: 0;
+}
+.pdf-textlayer ::selection {
+  background: var(--hl);
+}
+.pdf-textlayer .endOfContent {
+  position: absolute;
+  inset: 100% 0 0;
+  z-index: -1;
+  cursor: default;
+  user-select: none;
+  display: block;
+}
+.pdf-loading {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 4px 8px;
+  font-size: 14px;
+  color: var(--ink-2);
+  z-index: 6;
+}
+
+/* 选区菜单 */
+.sel-menu {
+  position: fixed;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 2px;
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  box-shadow: var(--shadow-sheet);
+  padding: 4px;
+  z-index: 60;
+}
+.sel-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--ink-2);
+  padding: 6px 10px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+.sel-btn:hover {
+  background: var(--accent-wash);
+  color: var(--accent-deep);
+}
+.sel-note {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--accent-deep);
+  background: var(--accent-wash);
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  padding: 3px 9px;
+}
+
+/* HUD 扩展 */
+.hud-sep {
+  width: 1px;
+  height: 16px;
+  background: var(--line);
+  margin: 0 5px;
+}
+.hud-zoom {
+  font-size: 12px;
+  color: var(--ink-2);
+  padding: 0 6px;
+  letter-spacing: 0.04em;
+  min-width: 46px;
+}
+.hud-zoom:hover {
+  color: var(--accent-deep);
+}
+
