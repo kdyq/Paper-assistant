@@ -13,6 +13,12 @@ import {
   streamProgressiveFields,
   type ExtractResult,
 } from '../services/extract'
+import {
+  GLOSSARY_PROMPT_VER,
+  buildGlossaryMessages,
+  parseGlossaryJson,
+  type GlossaryItem,
+} from '../services/glossary'
 import { loadPageTexts, useLibraryStore } from './library'
 import { useReaderStore } from './reader'
 import { useSettingsStore } from './settings'
@@ -39,6 +45,17 @@ export interface ChatRow {
   messages: ChatTurn[]
   updatedAt: number
 }
+
+export interface GlossaryRow {
+  paperId: string
+  model: string
+  promptVer: string
+  items: GlossaryItem[]
+  createdAt: number
+  degraded?: boolean
+}
+
+export type GlossaryStatus = 'idle' | 'running' | 'done' | 'error'
 
 interface ExtractState {
   paperId: string
@@ -78,6 +95,15 @@ export const useAiStore = defineStore('ai', {
     },
     /** 问答 tab 聚焦信号（选区「解释/翻译」触发时切 tab） */
     chatFocusTick: 0,
+    glossary: {
+      paperId: '',
+      status: 'idle' as GlossaryStatus,
+      items: [] as GlossaryItem[],
+      fromCache: false,
+      cachedAt: 0,
+      degraded: false,
+      error: '',
+    },
   }),
   actions: {
     /** 打开文献时读缓存：命中则直接呈现，不再调用 */
@@ -312,6 +338,88 @@ export const useAiStore = defineStore('ai', {
     async clearChat(paperId: string) {
       this.chat = { paperId, messages: [], status: 'idle', streaming: '', reasoningLen: 0, error: '' }
       await dbPut('chats', { paperId, messages: [], updatedAt: Date.now() })
+    },
+
+    // ================= 术语表与符号表（Step 14） =================
+
+    async loadGlossary(paperId: string) {
+      const settings = useSettingsStore()
+      await settings.ensureLoaded()
+      const row = await dbGet<GlossaryRow>('glossary', paperId)
+      this.glossary = {
+        paperId,
+        status: row ? 'done' : 'idle',
+        items: row?.items ?? [],
+        fromCache: !!row,
+        cachedAt: row?.createdAt ?? 0,
+        degraded: !!row?.degraded,
+        error: '',
+      }
+    },
+
+    async runGlossary(paperId: string, regenerate = false) {
+      const library = useLibraryStore()
+      const paper = library.papers.find((p) => p.id === paperId)
+      if (!paper) return
+      if (paper.textEmpty) {
+        this.glossary = { ...this.glossary, status: 'error', error: '该文献为扫描版（无文本层），无法提取术语。' }
+        return
+      }
+      if (!regenerate) {
+        await this.loadGlossary(paperId)
+        if (this.glossary.status === 'done') return
+      }
+      const pages = await loadPageTexts(paperId)
+      if (!pages.length) {
+        this.glossary = { ...this.glossary, status: 'error', error: '未找到页面文本，请重新上传。' }
+        return
+      }
+      this.glossary = { paperId, status: 'running', items: [], fromCache: false, cachedAt: 0, degraded: false, error: '' }
+
+      let pending: ChatMessage | null = null
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const settings = useSettingsStore()
+          await settings.ensureLoaded()
+          const base = buildGlossaryMessages(
+            { title: paper.title },
+            pages.map((p) => ({ page: p.page, text: p.text })),
+          )
+          const msgs: ChatMessage[] = pending
+            ? [...base, pending, { role: 'user', content: '上一次输出无法解析为 JSON。重新输出：只输出合法的 JSON 对象本身。' }]
+            : base
+          const full = await chat(msgs, { temperature: 0.2 })
+          const items = parseGlossaryJson(full)
+          if (!items && attempt === 0) {
+            pending = { role: 'assistant', content: full }
+            continue
+          }
+          const degraded = !items
+          const row: GlossaryRow = {
+            paperId,
+            model: settings.effectiveAi.model,
+            promptVer: GLOSSARY_PROMPT_VER,
+            items: items ?? [],
+            createdAt: Date.now(),
+            degraded,
+          }
+          await dbPut('glossary', row)
+          this.glossary = {
+            paperId,
+            status: items ? 'done' : 'done',
+            items: items ?? [],
+            fromCache: false,
+            cachedAt: row.createdAt,
+            degraded,
+            error: '',
+          }
+          return
+        } catch (e) {
+          const msg = e instanceof AiError ? e.message : e instanceof Error ? e.message : String(e)
+          this.glossary = { ...this.glossary, status: 'error', error: msg }
+          return
+        }
+      }
     },
   },
 })

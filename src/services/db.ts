@@ -7,9 +7,9 @@
  */
 
 const DB_NAME = 'paper-study'
-const DB_VERSION = 1
+const DB_VERSION = 2
 
-export type StoreName = 'papers' | 'pageTexts' | 'extracts' | 'chats' | 'notes' | 'settings'
+export type StoreName = 'papers' | 'pageTexts' | 'extracts' | 'chats' | 'notes' | 'settings' | 'glossary'
 
 // Pinia/Vue 的 reactive Proxy 无法被结构化克隆（DataCloneError），落库前一律深度还原为原始对象
 // 注意 toRaw 只解顶层：嵌套的代理（如 reactive 数组内的对象、赋给普通对象的数组字段）需递归处理
@@ -65,6 +65,9 @@ function openDb(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains('settings')) {
         db.createObjectStore('settings', { keyPath: 'key' })
+      }
+      if (!db.objectStoreNames.contains('glossary')) {
+        db.createObjectStore('glossary', { keyPath: 'paperId' })
       }
     }
     req.onsuccess = () => {

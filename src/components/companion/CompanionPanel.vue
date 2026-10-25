@@ -16,7 +16,7 @@ const library = useLibraryStore()
 const ai = useAiStore()
 const notesStore = useNotesStore()
 const reader = useReaderStore()
-const tab = ref<'extract' | 'chat' | 'notes'>('extract')
+const tab = ref<'extract' | 'chat' | 'notes' | 'glossary'>('extract')
 const chatInput = ref('')
 
 const paper = computed(() => library.current)
@@ -24,6 +24,7 @@ const ex = computed(() => ai.extract)
 const chat = computed(() => ai.chat)
 const chatRunning = computed(() => chat.value.status === 'running')
 const notesList = computed(() => notesStore.current)
+const gl = computed(() => ai.glossary)
 
 watch(
   () => library.currentId,
@@ -32,6 +33,7 @@ watch(
       void ai.loadCachedExtract(id)
       void ai.loadChat(id)
       void notesStore.load(id)
+      void ai.loadGlossary(id)
     }
   },
   { immediate: true },
@@ -68,6 +70,7 @@ const TABS = [
   { key: 'extract', label: '提取' },
   { key: 'chat', label: '问答' },
   { key: 'notes', label: '笔记' },
+  { key: 'glossary', label: '术语' },
 ] as const
 
 const CARDS = [
@@ -98,13 +101,23 @@ function runExtract(regen = false) {
   void ai.runExtract(paper.value.id, regen)
 }
 
-function switchTab(key: 'extract' | 'chat' | 'notes') {
+function switchTab(key: 'extract' | 'chat' | 'notes' | 'glossary') {
   if (tab.value === key) return
   tab.value = key
   requestAnimationFrame(() => {
     const pane = document.querySelector(`[data-pane="${key}"]`)
     if (pane) safeFrom(pane.children, { y: 8, autoAlpha: 0, duration: 0.3, stagger: 0.05, ease: 'power2.out' })
   })
+}
+
+/* 术语表（Step 14） */
+function runGlossary(regen = false) {
+  if (!paper.value) return
+  void ai.runGlossary(paper.value.id, regen)
+}
+
+function jumpGlossary(item: { name: string; page: number }) {
+  void reader.jumpWithHighlight(item.page, item.name)
 }
 
 function sendFromInput() {
@@ -412,6 +425,59 @@ function jumpChatRef(content: string, refPage: number) {
           <div class="note-text" data-testid="note-content-text">{{ n.content }}</div>
         </div>
       </div>
+
+      <!-- ============ 术语表与符号表（Step 14） ============ -->
+      <div class="ai-panel-pane" :class="{ active: tab === 'glossary' }" data-pane="glossary">
+        <!-- 空态 / 待生成 -->
+        <template v-if="gl.status === 'idle'">
+          <div class="extract-hero" data-testid="glossary-hero">
+            <i class="ph ph-book-open-text"></i>
+            <div class="t">术语表与符号表</div>
+            <div class="s">AI 提取方法/概念术语与数学符号<br />每条附释义与原文页码，可一键回文</div>
+            <button v-if="paper && !paper.textEmpty" class="btn btn-primary" data-testid="btn-glossary" @click="runGlossary(false)">
+              <i class="ph ph-magic-wand"></i> 开始提取
+            </button>
+            <div v-else class="s" style="margin-top: 8px">{{ paper ? '扫描版文献暂不支持。' : '先打开一篇文献。' }}</div>
+          </div>
+        </template>
+
+        <template v-else>
+          <div v-if="gl.status === 'running'" class="extract-status" data-testid="glossary-status">
+            <i class="ph ph-circle-notch spin"></i> 收录词条中…
+          </div>
+          <div v-else-if="gl.status === 'error'" class="notice-bar" data-testid="glossary-error">
+            <i class="ph ph-warning-circle"></i><span>{{ gl.error }}</span>
+            <i class="ph ph-arrow-clockwise close" title="重试" @click="runGlossary(true)"></i>
+          </div>
+
+          <div
+            v-for="(it, i) in gl.items"
+            :key="it.kind + it.name + i"
+            class="extract-card glossary-card"
+            :data-testid="`gl-card-${i}`"
+          >
+            <div class="extract-head">
+              <span v-if="it.kind === 'symbol'" class="gl-kind gl-symbol" title="符号">符</span>
+              <span v-else class="gl-kind" title="术语">术</span>
+              <span class="extract-title gl-name">{{ it.name }}</span>
+              <button class="extract-loc loc-btn" :data-testid="`gl-loc-${i}`" title="跳转原文" @click="jumpGlossary(it)">
+                P.{{ it.page }}
+              </button>
+            </div>
+            <div class="extract-text">{{ it.definition }}</div>
+          </div>
+
+          <div v-if="gl.status === 'done'" class="extract-foot" data-testid="glossary-foot">
+            <span class="muted">
+              {{ gl.items.length }} 条{{ gl.fromCache ? ' · 缓存' : ' · 已生成' }}
+              <template v-if="gl.degraded"> · 解析降级</template>
+            </span>
+            <button class="tag-add" data-testid="btn-glossary-regen" @click="runGlossary(true)">
+              <i class="ph ph-arrow-counter-clockwise" style="font-size: 9px"></i> 重新生成
+            </button>
+          </div>
+        </template>
+      </div>
     </div>
     <div class="ai-input">
       <div class="ai-input-box">
@@ -513,6 +579,25 @@ function jumpChatRef(content: string, refPage: number) {
   padding: 5px 9px;
   margin-bottom: 6px;
   line-height: 1.6;
+}
+.gl-kind {
+  font-size: 9.5px;
+  color: var(--ink-2);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 3px;
+  padding: 0 5px;
+  flex-shrink: 0;
+}
+.gl-kind.gl-symbol {
+  color: var(--accent-deep);
+  border-color: var(--accent);
+  background: var(--accent-wash);
+}
+.gl-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .spin {
   animation: spin 1s linear infinite;
