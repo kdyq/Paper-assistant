@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { computed, nextTick, watch } from 'vue'
 import { ref } from 'vue'
+import NoteDialog from '../common/NoteDialog.vue'
 import { useAiStore } from '../../stores/ai'
 import { useLibraryStore } from '../../stores/library'
+import { useNotesStore, type Note } from '../../stores/notes'
+import { useReaderStore } from '../../stores/reader'
 import { useSettingsStore } from '../../stores/settings'
 import { safeFrom } from '../../utils/anim'
 
@@ -10,6 +13,8 @@ import { safeFrom } from '../../utils/anim'
 const settings = useSettingsStore()
 const library = useLibraryStore()
 const ai = useAiStore()
+const notesStore = useNotesStore()
+const reader = useReaderStore()
 const tab = ref<'extract' | 'chat' | 'notes'>('extract')
 const chatInput = ref('')
 
@@ -17,6 +22,7 @@ const paper = computed(() => library.current)
 const ex = computed(() => ai.extract)
 const chat = computed(() => ai.chat)
 const chatRunning = computed(() => chat.value.status === 'running')
+const notesList = computed(() => notesStore.current)
 
 watch(
   () => library.currentId,
@@ -24,6 +30,7 @@ watch(
     if (id) {
       void ai.loadCachedExtract(id)
       void ai.loadChat(id)
+      void notesStore.load(id)
     }
   },
   { immediate: true },
@@ -34,6 +41,14 @@ watch(
   () => ai.chatFocusTick,
   () => {
     tab.value = 'chat'
+  },
+)
+
+/* 新建笔记成功 → 切到笔记 tab */
+watch(
+  () => notesStore.focusTick,
+  () => {
+    tab.value = 'notes'
   },
 )
 
@@ -96,6 +111,39 @@ function sendFromInput() {
   if (!q.trim() || chatRunning.value || !paper.value) return
   chatInput.value = ''
   void ai.sendChat(q)
+}
+
+/* ---------- 笔记（Step 7） ---------- */
+const noteEditing = ref<Note | null>(null) // 编辑态
+const noteCreating = ref(false) // 全局新建态
+
+function openCreateNote() {
+  if (!paper.value) return
+  noteCreating.value = true
+}
+
+async function saveCreateNote(data: { content: string; quote: string }) {
+  if (!paper.value) return
+  await notesStore.create(paper.value.id, { page: 0, quote: data.quote, content: data.content })
+  noteCreating.value = false
+}
+
+async function saveEditNote(data: { content: string; quote: string }) {
+  if (!noteEditing.value) return
+  await notesStore.update(noteEditing.value.id, { content: data.content, quote: data.quote })
+  noteEditing.value = null
+}
+
+function jumpNote(n: Note) {
+  if (n.page > 0) void reader.jumpWithHighlight(n.page, n.quote)
+}
+
+function fmtNoteTime(ts: number): string {
+  const d = new Date(ts)
+  const sameDay = d.toDateString() === new Date().toDateString()
+  return sameDay
+    ? d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+    : d.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })
 }
 </script>
 
@@ -259,9 +307,40 @@ function sendFromInput() {
 
       <!-- ============ 笔记（Step 7） ============ -->
       <div class="ai-panel-pane" :class="{ active: tab === 'notes' }" data-pane="notes">
-        <div class="note-card" data-anim="card">
+        <div v-if="paper" class="chat-clear">
+          <button class="tag-add" data-testid="btn-new-note" @click="openCreateNote">
+            <i class="ph ph-plus" style="font-size: 9px"></i> 新建全局笔记
+          </button>
+        </div>
+
+        <!-- 空态 -->
+        <div v-if="!notesList.length" class="note-card" data-anim="card">
           <div class="note-head"><i class="ph ph-bookmark-simple"></i>笔记</div>
-          <div class="note-text muted">阅读时选中文本即可记笔记，笔记锚定页码与引文，可一键跳回原文。</div>
+          <div class="note-text muted">
+            {{ paper ? '阅读时选中文本即可记笔记，笔记锚定页码与引文，点击可跳回原文。' : '打开文献后即可记笔记。' }}
+          </div>
+        </div>
+
+        <!-- 列表 -->
+        <div
+          v-for="n in notesList"
+          :key="n.id"
+          class="note-card"
+          :class="{ clickable: n.page > 0 }"
+          :data-testid="`note-${n.id}`"
+          @click="jumpNote(n)"
+        >
+          <div class="note-head">
+            <i class="ph ph-bookmark-simple"></i>
+            <span>{{ n.page > 0 ? `锚定 P.${n.page}` : '全局' }}</span>
+            <span class="note-time">{{ fmtNoteTime(n.updatedAt) }}</span>
+            <span class="note-actions">
+              <i class="ph ph-pencil-simple note-act" title="编辑" @click.stop="noteEditing = n"></i>
+              <i class="ph ph-trash note-act" title="删除" @click.stop="notesStore.remove(n.id)"></i>
+            </span>
+          </div>
+          <div v-if="n.quote" class="note-quote">"{{ n.quote }}"</div>
+          <div class="note-text" data-testid="note-content-text">{{ n.content }}</div>
         </div>
       </div>
     </div>
@@ -285,6 +364,19 @@ function sendFromInput() {
         {{ chatRunning ? '伴读批注中…' : '选中左侧原文后，可直接「解释这段 / 翻译这段」' }}
       </div>
     </div>
+
+    <!-- 全局新建笔记 -->
+    <NoteDialog v-if="noteCreating" @close="noteCreating = false" @save="saveCreateNote" />
+    <!-- 编辑笔记 -->
+    <NoteDialog
+      v-if="noteEditing"
+      :page="noteEditing.page"
+      :quote="noteEditing.quote"
+      :content="noteEditing.content"
+      :editing-id="noteEditing.id"
+      @close="noteEditing = null"
+      @save="saveEditNote"
+    />
   </aside>
 </template>
 
@@ -316,6 +408,42 @@ function sendFromInput() {
 .send.disabled {
   opacity: 0.35;
   cursor: default;
+}
+.note-card.clickable {
+  cursor: pointer;
+}
+.note-card.clickable:hover {
+  border-color: var(--accent);
+}
+.note-time {
+  margin-left: auto;
+}
+.note-actions {
+  display: flex;
+  gap: 5px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.note-card:hover .note-actions {
+  opacity: 1;
+}
+.note-act {
+  cursor: pointer;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+.note-act:hover {
+  color: var(--accent-deep);
+}
+.note-quote {
+  font-size: 11.5px;
+  color: var(--ink-3);
+  border-left: 2px solid var(--accent);
+  background: var(--surface);
+  border-radius: 3px;
+  padding: 5px 9px;
+  margin-bottom: 6px;
+  line-height: 1.6;
 }
 .spin {
   animation: spin 1s linear infinite;

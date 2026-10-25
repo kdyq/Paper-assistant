@@ -22,6 +22,8 @@ export const useReaderStore = defineStore('reader', {
     error: '',
     selectedText: '',
     selectedPage: 0,
+    highlightQuote: '',
+    highlightTick: 0, // 每次递增触发一次文本层高亮
   }),
   actions: {
     async open(paperId: string) {
@@ -80,6 +82,13 @@ export const useReaderStore = defineStore('reader', {
     setSelection(text: string, page: number) {
       this.selectedText = text
       this.selectedPage = page
+    },
+
+    /** 笔记/引用跳转：翻页 + 渲染完成后 flash 高亮引文（PdfSheet 监听 highlightTick） */
+    async jumpWithHighlight(page: number, quote: string) {
+      await this.goTo(page)
+      this.highlightQuote = quote
+      this.highlightTick++
     },
   },
 })

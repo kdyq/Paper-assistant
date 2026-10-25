@@ -2,14 +2,18 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { TextLayer } from 'pdfjs-dist'
 import type { RenderTask } from 'pdfjs-dist'
+import NoteDialog from '../common/NoteDialog.vue'
 import SelectionMenu from './SelectionMenu.vue'
 import { useAiStore } from '../../stores/ai'
 import { useLibraryStore } from '../../stores/library'
+import { useNotesStore } from '../../stores/notes'
 import { useReaderStore } from '../../stores/reader'
+import { flashQuoteInTextLayer } from '../../utils/highlight'
 
 const reader = useReaderStore()
 const library = useLibraryStore()
 const ai = useAiStore()
+const notes = useNotesStore()
 const paper = computed(() => library.current)
 
 const bodyEl = ref<HTMLElement | null>(null)
@@ -136,15 +140,49 @@ function onDocMouseDown(e: MouseEvent) {
   }
 }
 
-/** 选区菜单动作：解释/翻译 → 伴读问答；笔记 → Step 7 */
+/** 选区菜单动作：解释/翻译 → 伴读问答；记笔记 → 弹层 */
 function onSelAction(kind: 'explain' | 'translate' | 'note') {
   const text = reader.selectedText
   const page = reader.selectedPage
   menu.value = null
   if (!text || !paper.value) return
-  if (kind === 'note') return // Step 7 接入
+  if (kind === 'note') {
+    noteDraft.value = { page, quote: text.slice(0, 400) }
+    return
+  }
   void ai.askSelection(kind, text, page)
 }
+
+/* ---------- 笔记 ---------- */
+const noteDraft = ref<{ page: number; quote: string } | null>(null)
+
+async function saveNote(data: { content: string; quote: string }) {
+  if (!paper.value || !noteDraft.value) return
+  await notes.create(paper.value.id, {
+    page: noteDraft.value.page,
+    quote: data.quote,
+    content: data.content,
+  })
+  noteDraft.value = null
+  notes.focusTick++ // 让伴读面板切到笔记 tab
+}
+
+/* ---------- 引用/笔记跳转高亮 ---------- */
+watch(
+  () => reader.highlightTick,
+  async () => {
+    const quote = reader.highlightQuote
+    if (!quote) return
+    // 等渲染完成后高亮（跳页时会有一次重渲染）
+    const t0 = Date.now()
+    while (reader.rendering && Date.now() - t0 < 3000) {
+      await new Promise((r) => setTimeout(r, 120))
+    }
+    await new Promise((r) => setTimeout(r, 150))
+    if (textEl.value) flashQuoteInTextLayer(textEl.value, quote)
+    reader.highlightQuote = ''
+  },
+)
 
 const selWrapStyle = computed(() => ({
   left: `${Math.min(Math.max(menu.value?.x ?? 0, 110), window.innerWidth - 110)}px`,
@@ -181,6 +219,13 @@ const selWrapStyle = computed(() => ({
     >
       <SelectionMenu @action="onSelAction" />
     </div>
+    <NoteDialog
+      v-if="noteDraft"
+      :page="noteDraft.page"
+      :quote="noteDraft.quote"
+      @close="noteDraft = null"
+      @save="saveNote"
+    />
   </teleport>
 </template>
 
