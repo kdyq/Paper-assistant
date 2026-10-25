@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, watch } from 'vue'
+import { computed, nextTick, watch } from 'vue'
 import { ref } from 'vue'
 import { useAiStore } from '../../stores/ai'
 import { useLibraryStore } from '../../stores/library'
@@ -11,16 +11,41 @@ const settings = useSettingsStore()
 const library = useLibraryStore()
 const ai = useAiStore()
 const tab = ref<'extract' | 'chat' | 'notes'>('extract')
+const chatInput = ref('')
 
 const paper = computed(() => library.current)
 const ex = computed(() => ai.extract)
+const chat = computed(() => ai.chat)
+const chatRunning = computed(() => chat.value.status === 'running')
 
 watch(
   () => library.currentId,
   (id) => {
-    if (id) void ai.loadCachedExtract(id)
+    if (id) {
+      void ai.loadCachedExtract(id)
+      void ai.loadChat(id)
+    }
   },
   { immediate: true },
+)
+
+/* 选区「解释/翻译」→ 切到问答 tab */
+watch(
+  () => ai.chatFocusTick,
+  () => {
+    tab.value = 'chat'
+  },
+)
+
+/* 问答自动滚底 */
+watch(
+  () => [chat.value.messages.length, chat.value.streaming.length, chat.value.reasoningLen, tab.value] as const,
+  async () => {
+    if (tab.value !== 'chat') return
+    await nextTick()
+    const body = document.querySelector('.tab-body')
+    if (body) body.scrollTop = body.scrollHeight
+  },
 )
 
 const TABS = [
@@ -64,6 +89,13 @@ function switchTab(key: 'extract' | 'chat' | 'notes') {
     const pane = document.querySelector(`[data-pane="${key}"]`)
     if (pane) safeFrom(pane.children, { y: 8, autoAlpha: 0, duration: 0.3, stagger: 0.05, ease: 'power2.out' })
   })
+}
+
+function sendFromInput() {
+  const q = chatInput.value
+  if (!q.trim() || chatRunning.value || !paper.value) return
+  chatInput.value = ''
+  void ai.sendChat(q)
 }
 </script>
 
@@ -176,12 +208,52 @@ function switchTab(key: 'extract' | 'chat' | 'notes') {
 
       <!-- ============ 问答（Step 6） ============ -->
       <div class="ai-panel-pane" :class="{ active: tab === 'chat' }" data-pane="chat">
-        <div class="chat-item" data-anim="card">
+        <!-- 清空 -->
+        <div v-if="chat.messages.length" class="chat-clear">
+          <button class="tag-add" data-testid="btn-clear-chat" @click="paper && ai.clearChat(paper.id)">
+            <i class="ph ph-broom" style="font-size: 9px"></i> 清空会话
+          </button>
+        </div>
+
+        <!-- 空态引导 -->
+        <div v-if="!chat.messages.length && !chatRunning" class="chat-item" data-anim="card">
           <div class="chat-avatar ai"><i class="ph ph-pen-nib"></i></div>
           <div class="chat-bubble">
             <div class="who">伴读</div>
-            <div class="txt">打开一篇文献后，可直接就内容提问，回答将附 [P.x] 原文定位。</div>
+            <div class="txt">
+              {{ paper ? '就当前论文提问，回答附 [P.x] 原文定位。也可在左侧选中原文后「解释这段 / 翻译这段」。' : '打开一篇文献后即可提问。' }}
+            </div>
           </div>
+        </div>
+
+        <!-- 历史消息 -->
+        <div v-for="(m, i) in chat.messages" :key="m.ts + '-' + i" class="chat-item" :data-testid="`chat-msg-${m.role}`">
+          <div class="chat-avatar" :class="m.role">
+            <i :class="m.role === 'user' ? 'ph ph-user' : 'ph ph-pen-nib'"></i>
+          </div>
+          <div class="chat-bubble">
+            <div class="who">{{ m.role === 'user' ? '我' : '伴读' }}</div>
+            <div class="txt">{{ m.content }}</div>
+            <div v-if="m.role === 'assistant' && m.refs.length" class="refs-line">
+              <span v-for="r in m.refs" :key="r" class="ref-chip">P.{{ r }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 流式中 -->
+        <div v-if="chatRunning" class="chat-item" data-testid="chat-streaming">
+          <div class="chat-avatar ai"><i class="ph ph-pen-nib"></i></div>
+          <div class="chat-bubble">
+            <div class="who">伴读</div>
+            <div v-if="chat.streaming" class="txt">{{ chat.streaming }}<span class="caret">▍</span></div>
+            <div v-else class="txt muted">{{ chat.reasoningLen ? `研读原文中 · ${chat.reasoningLen} 字` : '研读原文中…' }}</div>
+          </div>
+        </div>
+
+        <!-- 错误 -->
+        <div v-if="chat.status === 'error'" class="notice-bar" data-testid="chat-error">
+          <i class="ph ph-warning-circle"></i>
+          <span>{{ chat.error }}</span>
         </div>
       </div>
 
@@ -195,10 +267,23 @@ function switchTab(key: 'extract' | 'chat' | 'notes') {
     </div>
     <div class="ai-input">
       <div class="ai-input-box">
-        <input placeholder="就当前论文提问…" disabled />
-        <i class="ph ph-paper-plane-right send"></i>
+        <input
+          v-model="chatInput"
+          :placeholder="paper ? '就当前论文提问…' : '打开文献后可提问'"
+          :disabled="!paper"
+          data-testid="chat-input"
+          @keyup.enter="sendFromInput"
+        />
+        <i
+          class="ph ph-paper-plane-right send"
+          :class="{ disabled: !paper || chatRunning }"
+          data-testid="chat-send"
+          @click="sendFromInput"
+        ></i>
       </div>
-      <div class="ai-input-hint">选中右侧原文后，可直接「解释这段 / 翻译这段」</div>
+      <div class="ai-input-hint">
+        {{ chatRunning ? '伴读批注中…' : '选中左侧原文后，可直接「解释这段 / 翻译这段」' }}
+      </div>
     </div>
   </aside>
 </template>
@@ -206,6 +291,31 @@ function switchTab(key: 'extract' | 'chat' | 'notes') {
 <style scoped>
 .muted {
   color: var(--ink-3);
+}
+.caret {
+  color: var(--accent);
+}
+.chat-clear {
+  text-align: right;
+  margin-bottom: 6px;
+}
+.refs-line {
+  margin-top: 5px;
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.ref-chip {
+  font-size: 10px;
+  color: var(--accent-deep);
+  border: 1px solid var(--accent);
+  background: var(--accent-wash);
+  border-radius: 3px;
+  padding: 0 6px;
+}
+.send.disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 .spin {
   animation: spin 1s linear infinite;

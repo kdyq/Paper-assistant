@@ -1,5 +1,10 @@
 import { defineStore } from 'pinia'
 import { AiError, chat, type ChatMessage } from '../services/ai'
+import {
+  buildChatMessages,
+  extractPageRefs,
+  type ChatBrief,
+} from '../services/chat'
 import { dbGet, dbPut } from '../services/db'
 import {
   EXTRACT_PROMPT_VER,
@@ -9,6 +14,7 @@ import {
   type ExtractResult,
 } from '../services/extract'
 import { loadPageTexts, useLibraryStore } from './library'
+import { useReaderStore } from './reader'
 import { useSettingsStore } from './settings'
 
 export interface ExtractRow extends ExtractResult {
@@ -20,6 +26,19 @@ export interface ExtractRow extends ExtractResult {
 }
 
 export type ExtractStatus = 'idle' | 'running' | 'done' | 'error'
+
+export interface ChatTurn {
+  role: 'user' | 'assistant'
+  content: string
+  refs: number[] // 回答中的 [P.x] 页码（Step 9 跳转用）
+  ts: number
+}
+
+export interface ChatRow {
+  paperId: string
+  messages: ChatTurn[]
+  updatedAt: number
+}
 
 interface ExtractState {
   paperId: string
@@ -34,7 +53,7 @@ interface ExtractState {
   error: string
 }
 
-/** AI 域 store：四要素提取（Step 5）。缓存键 = paperId + 模型 + 提示词版本（§4.4）。 */
+/** AI 域 store：四要素提取（Step 5）+ 伴读问答（Step 6）。缓存键 = paperId + 模型 + 提示词版本（§4.4）。 */
 export const useAiStore = defineStore('ai', {
   state: () => ({
     extract: {
@@ -49,6 +68,16 @@ export const useAiStore = defineStore('ai', {
       model: '',
       error: '',
     } as ExtractState,
+    chat: {
+      paperId: '',
+      messages: [] as ChatTurn[],
+      status: 'idle' as 'idle' | 'running' | 'error',
+      streaming: '', // 正在生成的回答
+      reasoningLen: 0,
+      error: '',
+    },
+    /** 问答 tab 聚焦信号（选区「解释/翻译」触发时切 tab） */
+    chatFocusTick: 0,
   }),
   actions: {
     /** 打开文献时读缓存：命中则直接呈现，不再调用 */
@@ -179,6 +208,110 @@ export const useAiStore = defineStore('ai', {
           return
         }
       }
+    },
+
+    // ================= 伴读问答（Step 6） =================
+
+    /** 打开文献时加载会话历史（per-paper 持久化，刷新不丢） */
+    async loadChat(paperId: string) {
+      const row = await dbGet<ChatRow>('chats', paperId)
+      this.chat = {
+        paperId,
+        messages: row?.messages ?? [],
+        status: 'idle',
+        streaming: '',
+        reasoningLen: 0,
+        error: '',
+      }
+    },
+
+    async persistChat() {
+      if (!this.chat.paperId) return
+      const row: ChatRow = {
+        paperId: this.chat.paperId,
+        messages: this.chat.messages,
+        updatedAt: Date.now(),
+      }
+      await dbPut('chats', row)
+    },
+
+    /** 发送问题：组装上下文 → 流式回答 → 落库。上下文见 services/chat.ts */
+    async sendChat(question: string, selected?: { text: string; page: number }) {
+      const q = question.trim()
+      if (!q || !this.chat.paperId || this.chat.status === 'running') return
+      const library = useLibraryStore()
+      const reader = useReaderStore()
+      const paper = library.papers.find((p) => p.id === this.chat.paperId)
+      if (!paper) return
+
+      const pages = await loadPageTexts(this.chat.paperId)
+      if (!pages.length) {
+        this.chat.status = 'error'
+        this.chat.error = '未找到已解析的页面文本，无法回答。'
+        return
+      }
+
+      this.chat.messages.push({ role: 'user', content: q, refs: [], ts: Date.now() })
+      this.chat.status = 'running'
+      this.chat.streaming = ''
+      this.chat.reasoningLen = 0
+      this.chat.error = ''
+
+      const brief: ChatBrief = {
+        title: paper.title,
+        authors: paper.authors,
+        year: paper.year,
+        venue: paper.venue,
+      }
+      const ctx = {
+        brief,
+        summary: this.extract.paperId === paper.id ? this.extract.data?.summary : undefined,
+        selected,
+        currentPage: reader.paperId === paper.id ? reader.pageNo : undefined,
+        pages: pages.map((p) => ({ page: p.page, text: p.text })),
+        history: this.chat.messages
+          .slice(0, -1)
+          .filter((m) => m.content.trim())
+          .map((m) => ({ role: m.role, content: m.content })),
+        question: q,
+      }
+      const msgs: ChatMessage[] = buildChatMessages(ctx)
+
+      try {
+        const full = await chat(msgs, {
+          temperature: 0.4,
+          onDelta: (d) => {
+            this.chat.streaming += d
+          },
+          onReasoning: (d) => {
+            this.chat.reasoningLen += d.length
+          },
+        })
+        this.chat.messages.push({ role: 'assistant', content: full, refs: extractPageRefs(full), ts: Date.now() })
+        this.chat.streaming = ''
+        this.chat.status = 'idle'
+        await this.persistChat()
+      } catch (e) {
+        const msg = e instanceof AiError ? e.message : e instanceof Error ? e.message : String(e)
+        this.chat.streaming = ''
+        this.chat.status = 'error'
+        this.chat.error = msg
+      }
+    },
+
+    /** 选区菜单入口：解释/翻译选中段落（切到问答 tab 并直接提问） */
+    async askSelection(kind: 'explain' | 'translate', text: string, page: number) {
+      const q =
+        kind === 'explain'
+          ? '请解释我选中的这段原文：它在讲什么？术语和逻辑给必要的展开。'
+          : '请把我选中的这段原文完整翻译成中文（保留术语的通用译法）。'
+      this.chatFocusTick++
+      await this.sendChat(q, { text, page })
+    },
+
+    async clearChat(paperId: string) {
+      this.chat = { paperId, messages: [], status: 'idle', streaming: '', reasoningLen: 0, error: '' }
+      await dbPut('chats', { paperId, messages: [], updatedAt: Date.now() })
     },
   },
 })

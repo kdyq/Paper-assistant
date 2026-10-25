@@ -11,11 +11,31 @@ const DB_VERSION = 1
 
 export type StoreName = 'papers' | 'pageTexts' | 'extracts' | 'chats' | 'notes' | 'settings'
 
-// Pinia/Vue 的 reactive Proxy 无法被结构化克隆（DataCloneError），落库前一律还原为原始对象
+// Pinia/Vue 的 reactive Proxy 无法被结构化克隆（DataCloneError），落库前一律深度还原为原始对象
+// 注意 toRaw 只解顶层：嵌套的代理（如 reactive 数组内的对象、赋给普通对象的数组字段）需递归处理
 import { toRaw } from 'vue'
 
+function deepToRaw(v: unknown): unknown {
+  let cur = v
+  for (let i = 0; i < 10; i++) {
+    const raw = toRaw(cur)
+    if (raw === cur) break
+    cur = raw
+  }
+  if (Array.isArray(cur)) return cur.map(deepToRaw)
+  if (cur !== null && typeof cur === 'object') {
+    const proto = Object.getPrototypeOf(cur)
+    // 非普通对象（Blob/Date/ArrayBuffer 等）原样保留
+    if (proto !== Object.prototype && proto !== null) return cur
+    const out: Record<string, unknown> = {}
+    for (const [k, val] of Object.entries(cur as Record<string, unknown>)) out[k] = deepToRaw(val)
+    return out
+  }
+  return cur
+}
+
 function plain<T>(value: T): T {
-  return toRaw(value as never) as T
+  return deepToRaw(value) as T
 }
 
 let dbPromise: Promise<IDBDatabase> | null = null

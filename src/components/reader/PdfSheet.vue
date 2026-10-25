@@ -3,11 +3,13 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { TextLayer } from 'pdfjs-dist'
 import type { RenderTask } from 'pdfjs-dist'
 import SelectionMenu from './SelectionMenu.vue'
+import { useAiStore } from '../../stores/ai'
 import { useLibraryStore } from '../../stores/library'
 import { useReaderStore } from '../../stores/reader'
 
 const reader = useReaderStore()
 const library = useLibraryStore()
+const ai = useAiStore()
 const paper = computed(() => library.current)
 
 const bodyEl = ref<HTMLElement | null>(null)
@@ -133,6 +135,21 @@ function onDocMouseDown(e: MouseEvent) {
     menu.value = null
   }
 }
+
+/** 选区菜单动作：解释/翻译 → 伴读问答；笔记 → Step 7 */
+function onSelAction(kind: 'explain' | 'translate' | 'note') {
+  const text = reader.selectedText
+  const page = reader.selectedPage
+  menu.value = null
+  if (!text || !paper.value) return
+  if (kind === 'note') return // Step 7 接入
+  void ai.askSelection(kind, text, page)
+}
+
+const selWrapStyle = computed(() => ({
+  left: `${Math.min(Math.max(menu.value?.x ?? 0, 110), window.innerWidth - 110)}px`,
+  top: `${Math.max(menu.value?.y ?? 0, 8) - 44}px`,
+}))
 </script>
 
 <template>
@@ -157,11 +174,22 @@ function onDocMouseDown(e: MouseEvent) {
   </article>
 
   <teleport to="body">
-    <SelectionMenu v-if="menu" :x="menu.x" :y="menu.y" :text="reader.selectedText" @close="menu = null" />
+    <div
+      v-if="menu"
+      class="sel-menu-wrap"
+      :style="selWrapStyle"
+    >
+      <SelectionMenu @action="onSelAction" />
+    </div>
   </teleport>
 </template>
 
 <style scoped>
+.sel-menu-wrap {
+  position: fixed;
+  transform: translateX(-50%);
+  z-index: 60;
+}
 .spin {
   animation: spin 1s linear infinite;
   display: inline-block;

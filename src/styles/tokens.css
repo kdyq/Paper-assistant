@@ -1004,10 +1004,8 @@ textarea.field {
   z-index: 6;
 }
 
-/* 选区菜单 */
+/* 选区菜单（定位由 .sel-menu-wrap 外层负责） */
 .sel-menu {
-  position: fixed;
-  transform: translateX(-50%);
   display: flex;
   gap: 2px;
   align-items: center;
