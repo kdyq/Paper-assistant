@@ -70,8 +70,13 @@ export function downloadText(filename: string, text: string): void {
   const a = document.createElement('a')
   a.href = url
   a.download = filename
+  a.rel = 'noopener'
+  document.body.appendChild(a)
   a.click()
-  setTimeout(() => URL.revokeObjectURL(url), 3000)
+  a.remove()
+  // 撤销过早（3s 级）在 headless/慢速下载管道下可能触发对 blob URL 的导航重试；
+  // 延长到 60s，本应用数据全量持久化在 IndexedDB，即使触发刷新也无损。
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
 }
 
 export async function copyText(text: string): Promise<boolean> {

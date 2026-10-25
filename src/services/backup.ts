@@ -62,8 +62,11 @@ export function downloadBackup(backup: BackupFile): void {
   const a = document.createElement('a')
   a.href = url
   a.download = `paper-study-backup-${new Date().toISOString().slice(0, 10)}.json`
+  a.rel = 'noopener'
+  document.body.appendChild(a)
   a.click()
-  setTimeout(() => URL.revokeObjectURL(url), 3000)
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
 }
 
 /** 整库还原：清空所有 store 后写入备份内容。返回写入条数 */
