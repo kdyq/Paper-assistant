@@ -49,6 +49,8 @@ export const useLibraryStore = defineStore('library', {
     importProgress: 0, // 0-100
     importFile: '',
     importError: '',
+    filterStatus: 'all' as 'all' | PaperStatus, // Step 8 书架筛选
+    filterTags: [] as string[],
   }),
   getters: {
     current(state): Paper | undefined {
@@ -56,6 +58,16 @@ export const useLibraryStore = defineStore('library', {
     },
     allTags(state): string[] {
       return [...new Set(state.papers.flatMap((p) => p.tags))].sort((a, b) => a.localeCompare(b, 'zh'))
+    },
+    filtered(state): Paper[] {
+      return state.papers.filter((p) => {
+        if (state.filterStatus !== 'all' && p.status !== state.filterStatus) return false
+        if (state.filterTags.length && !state.filterTags.every((t) => p.tags.includes(t))) return false
+        return true
+      })
+    },
+    filterActive(state): boolean {
+      return state.filterStatus !== 'all' || state.filterTags.length > 0
     },
   },
   actions: {
@@ -178,6 +190,17 @@ export const useLibraryStore = defineStore('library', {
       await dbDeletePaperCascade(id)
       this.papers = this.papers.filter((p) => p.id !== id)
       if (this.currentId === id) this.currentId = null
+    },
+
+    toggleTagFilter(tag: string) {
+      this.filterTags = this.filterTags.includes(tag)
+        ? this.filterTags.filter((t) => t !== tag)
+        : [...this.filterTags, tag]
+    },
+
+    clearFilters() {
+      this.filterStatus = 'all'
+      this.filterTags = []
     },
   },
 })

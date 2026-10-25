@@ -42,16 +42,30 @@ function guessTitle(lines: string[], metadataTitle?: string): string | undefined
     if (!bad) return metadataTitle
   }
   const head = lines.slice(0, 30)
-  // 中文论文：首个 ≥8 字的中文行（常为标题，或在《》内）
-  for (const l of head) {
-    const s = l.trim()
-    const m = s.match(/《([^》]{4,60})》/)
+  // 标题区：摘要标记之前的行（摘要正文也是纯中文行，必须排除）
+  const absIdx = head.findIndex((l) => /^(摘\s*要|摘\s*要|Abstract|ABSTRACT)/.test(l.trim()))
+  const zone = absIdx >= 0 ? head.slice(0, absIdx) : head
+
+  // 中文论文：先找《》书名号
+  for (const l of zone) {
+    const m = l.trim().match(/《([^》]{4,60})》/)
     if (m) return m[1]
   }
-  const zhLine = head.find(
-    (l) => /^[\u4e00-\u9fff][\u4e00-\u9fff\s，、：:·0-9A-Za-z-]{7,60}$/.test(l.trim()),
-  )
-  if (zhLine) return zhLine.trim()
+  // 纯中文行（不含数字/字母/邮箱，避免误抓作者上标行）
+  const zhPure = zone.find((l) => {
+    const s = l.trim()
+    return (
+      s.length >= 8 &&
+      s.length <= 40 &&
+      /^[\u4e00-\u9fff]/.test(s) &&
+      !/[0-9A-Za-z@]/.test(s) &&
+      !/^(关键词|中图分类号|收稿日期|基金项目|DOI)/.test(s)
+    )
+  })
+  if (zhPure) return zhPure.trim()
+  // 次选：允许夹带数字的中文行，但剥离行首"作者名+上标数字"前缀
+  const zhLoose = zone.find((l) => /^[\u4e00-\u9fff][\u4e00-\u9fff\s，、：:·0-9A-Za-z-]{7,60}$/.test(l.trim()))
+  if (zhLoose) return cleanupZhTitle(zhLoose)
 
   // 英文：跳过噪声，取首个 20~200 字符、含 ≥3 个空格（近似句子/标题）且不是 "Abstract" 的行
   for (const l of head) {
@@ -78,17 +92,46 @@ function guessTitle(lines: string[], metadataTitle?: string): string | undefined
   return first?.trim()
 }
 
+/** 剥离中文标题行行首的"作者名+上标数字"前缀（如 "袁雪丰1 刘雪莉1 "） */
+function cleanupZhTitle(s: string): string {
+  let t = s.trim()
+  for (;;) {
+    const m = t.match(/^[\u4e00-\u9fff]{2,4}\d{0,2}[ \u3000]+/)
+    if (!m) break
+    if (t.length - m[0].length < 8) break // 避免把短标题剥没
+    t = t.slice(m[0].length)
+  }
+  return t
+}
+
 function guessAuthors(lines: string[], titleLine: string | undefined): string[] {
   const head = lines.slice(0, 30)
+  const absIdx = head.findIndex((l) => /^(摘\s*要|Abstract|ABSTRACT)/.test(l.trim()))
+  const zone = absIdx >= 0 ? head.slice(0, absIdx) : head.slice(0, 12)
+
+  // 中文作者行：整行都是 2-4 字姓名+可选上标数字（空格/顿号/逗号分隔），收集全部匹配行
+  const zhNames: string[] = []
+  for (const l of zone) {
+    const s = l.trim().replace(/^(by|作者[:：]|members:)\s*/i, '')
+    if (!s || !/^[\u4e00-\u9fff]/.test(s)) continue
+    const tokens = s.split(/[ \u3000，,、]+/)
+    if (!tokens.length) continue
+    const nameTokens = tokens.filter((t) => /^[\u4e00-\u9fff]{2,4}\d{0,2}$/.test(t))
+    // 整行至少 2/3 是姓名 token 才算作者行（防误抓正文）
+    if (nameTokens.length >= Math.max(1, Math.ceil(tokens.length * (2 / 3))) && nameTokens.length >= 1) {
+      for (const t of nameTokens) {
+        const name = t.replace(/\d+$/, '')
+        if (!zhNames.includes(name)) zhNames.push(name)
+      }
+    }
+  }
+  if (zhNames.length) return zhNames.slice(0, 15)
+
   const startIdx = titleLine ? head.findIndex((l) => l.trim() === titleLine) : -1
   const pool = startIdx >= 0 ? head.slice(startIdx + 1, startIdx + 6) : head.slice(1, 6)
   for (const l of pool) {
     const s = l.trim().replace(/^(by|作者[:：]|members:)\s*/i, '')
     if (!s || s.length > 300) continue
-    // 中文作者行：顿号/逗号分隔的 2-4 字姓名
-    if (/^[\u4e00-\u9fff]{2,4}([，,、]\s*[\u4e00-\u9fff]{2,4}){1,9}$/.test(s)) {
-      return s.split(/[，,、]\s*/).filter(Boolean)
-    }
     // 英文作者行：Name, Name and Name；或 F. Last, F. Last
     if (/^[A-Z][A-Za-z'.-]*(?:\s+[A-Z][A-Za-z'.-]*){0,3}/.test(s)) {
       const seg = s.split(/\s*(?:,|;|and|&)\s*/i).filter(Boolean)
@@ -104,7 +147,7 @@ function guessAuthors(lines: string[], titleLine: string | undefined): string[] 
 }
 
 function guessYear(lines: string[], metadata?: string): number | undefined {
-  const src = [metadata ?? '', ...lines.slice(0, 30)].join('\n')
+  const src = [metadata ?? '', ...lines.slice(0, 40)].join('\n')
   const m = src.match(/\b(19[89]\d|20[0-4]\d)\b/)
   if (!m) return undefined
   const y = Number(m[1])

@@ -31,6 +31,14 @@ const NEXT_STATUS: Record<PaperStatus, PaperStatus> = {
   done: 'unread',
 }
 
+/* 书架筛选（Step 8） */
+const FILTERS = [
+  { key: 'all', label: '全部' },
+  { key: 'unread', label: '未读' },
+  { key: 'reading', label: '在读' },
+  { key: 'done', label: '已读' },
+] as const
+
 const metaPaper = computed(() => library.papers.find((p) => p.id === showMetaFor.value))
 
 function pickFiles() {
@@ -90,6 +98,12 @@ function cycleStatus(p: Paper) {
   void library.setStatus(p.id, NEXT_STATUS[p.status])
 }
 
+/** 点击星级评分；再点当前星级取消评分 */
+function toggleRating(p: Paper, s: number) {
+  if (p.rating === s) void library.updateMeta(p.id, { rating: undefined })
+  else void library.setRating(p.id, s)
+}
+
 function startTagAdd(p: Paper) {
   tagInputFor.value = p.id
   tagDraft.value = ''
@@ -131,6 +145,43 @@ async function doDelete() {
     <span class="lib-title">书架</span><span class="lib-count">{{ library.papers.length }} 篇</span>
   </div>
 
+  <!-- 筛选（Step 8） -->
+  <div v-if="library.papers.length" class="lib-filters" data-testid="shelf-filters">
+    <div class="filter-row">
+      <button
+        v-for="f in FILTERS"
+        :key="f.key"
+        class="filter-chip"
+        :class="{ active: library.filterStatus === f.key }"
+        :data-testid="`filter-${f.key}`"
+        @click="library.filterStatus = f.key"
+      >
+        {{ f.label }}
+      </button>
+      <button
+        v-if="library.filterActive"
+        class="filter-clear"
+        data-testid="filter-clear"
+        title="清除筛选"
+        @click="library.clearFilters()"
+      >
+        <i class="ph ph-x"></i>
+      </button>
+    </div>
+    <div v-if="library.allTags.length" class="filter-row">
+      <button
+        v-for="t in library.allTags"
+        :key="t"
+        class="filter-tag"
+        :class="{ active: library.filterTags.includes(t) }"
+        :data-testid="`filter-tag-${t}`"
+        @click="library.toggleTagFilter(t)"
+      >
+        {{ t }}
+      </button>
+    </div>
+  </div>
+
   <!-- 导入三态 -->
   <div v-if="library.importPhase === 'parsing' || library.importPhase === 'saving'" class="import-bar" data-testid="import-bar">
     <i class="ph ph-spinner"></i>
@@ -143,8 +194,16 @@ async function doDelete() {
     <i class="ph ph-x close" title="关闭" @click="dismissError"></i>
   </div>
 
+  <!-- 加载骨架 -->
+  <template v-if="!library.loaded">
+    <div v-for="i in 3" :key="`skel-${i}`" class="skel-item">
+      <div class="skel-line" style="width: 85%"></div>
+      <div class="skel-line" style="width: 50%"></div>
+    </div>
+  </template>
+
   <!-- 空态 -->
-  <div v-if="library.loaded && !library.papers.length" class="lib-empty" data-anim="lib-empty">
+  <div v-else-if="!library.papers.length" class="lib-empty" data-anim="lib-empty">
     <i class="ph ph-books"></i>
     <div class="t">书架尚空</div>
     <div class="s">拖入或上传 PDF 文献<br />题录将自动预填、可修改</div>
@@ -155,7 +214,7 @@ async function doDelete() {
 
   <!-- 列表 -->
   <div
-    v-for="p in library.papers"
+    v-for="p in library.filtered"
     :key="p.id"
     class="lib-item"
     :class="{ active: p.id === library.currentId }"
@@ -174,6 +233,7 @@ async function doDelete() {
       >
         {{ STATUS_LABEL[p.status] }}
       </button>
+      <span v-if="p.rating" class="rating-num" :data-testid="`rating-${p.id}`">★{{ p.rating }}</span>
       <span class="progress-num">{{ p.lastPage }}/{{ p.totalPages }}</span>
       <span v-if="p.textEmpty" :data-testid="`scanwarn-${p.id}`" title="疑似扫描版，无文本层">
         <i class="ph ph-warning-diamond" style="font-size: 12px"></i>
@@ -193,6 +253,15 @@ async function doDelete() {
       <button class="tag-add" :data-testid="`del-${p.id}`" title="移除文献" style="color: var(--accent-deep)" @click.stop="confirmDeleteFor = p.id">
         <i class="ph ph-trash" style="font-size: 9px"></i> 移除
       </button>
+      <span class="rate-stars" :data-testid="`rate-${p.id}`" title="评分（点击星级）">
+        <i
+          v-for="s in 5"
+          :key="s"
+          :class="(p.rating ?? 0) >= s ? 'ph-fill ph-star' : 'ph ph-star'"
+          :style="(p.rating ?? 0) >= s ? 'color: var(--accent)' : ''"
+          @click.stop="toggleRating(p, s)"
+        ></i>
+      </span>
       <input
         v-if="tagInputFor === p.id"
         v-model="tagDraft"
@@ -205,6 +274,13 @@ async function doDelete() {
         @click.stop
       />
     </div>
+  </div>
+
+  <!-- 筛选无结果 -->
+  <div v-if="library.loaded && library.papers.length && !library.filtered.length" class="lib-empty">
+    <i class="ph ph-funnel"></i>
+    <div class="t">无符合条件的文献</div>
+    <button class="btn" style="margin-top: 10px" @click="library.clearFilters()">清除筛选</button>
   </div>
 
   <!-- 列表底部上传按钮 -->

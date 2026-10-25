@@ -1,16 +1,34 @@
 <script setup lang="ts">
-import { nextTick, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { nextTick, onBeforeUnmount, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import CompanionPanel from './components/companion/CompanionPanel.vue'
 import ShelfPanel from './components/shelf/ShelfPanel.vue'
+import { useReaderStore } from './stores/reader'
 import { useSettingsStore } from './stores/settings'
 import { safeTimeline } from './utils/anim'
 
 const settings = useSettingsStore()
 const route = useRoute()
+const router = useRouter()
+const reader = useReaderStore()
+
+/* 全局快捷键（Step 8）：←/→ 翻页、Ctrl K 聚焦搜索 */
+function onKeydown(e: KeyboardEvent) {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+    e.preventDefault()
+    void router.push('/search')
+    return
+  }
+  const t = e.target as HTMLElement | null
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return
+  if (route.name !== 'reader' || !reader.ready || reader.error) return
+  if (e.key === 'ArrowLeft') void reader.prevPage()
+  else if (e.key === 'ArrowRight') void reader.nextPage()
+}
 
 onMounted(async () => {
   settings.initTheme()
+  window.addEventListener('keydown', onKeydown)
   await nextTick() // 等首屏内容就绪，避免 GSAP 对不存在目标告警
   // 入场编排（§3.4：from + clearProps 双兜底，reduced-motion 不动）
   safeTimeline((tl) => {
@@ -21,6 +39,10 @@ onMounted(async () => {
       .from('[data-anim="card"]', { y: 7, autoAlpha: 0, stagger: 0.04 }, '-=.25')
       .from('[data-anim="hud"]', { y: 8, autoAlpha: 0, duration: 0.28 }, '-=.28')
   })
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKeydown)
 })
 </script>
 
@@ -33,7 +55,7 @@ onMounted(async () => {
         <div class="brand-sub">文献阅读助手</div>
       </div>
     </div>
-    <div class="search" data-testid="search-box">
+    <div class="search" data-testid="search-box" title="全文检索（Ctrl K）" @click="router.push('/search')">
       <i class="ph ph-magnifying-glass"></i>
       <span>检索书架与全文</span>
       <kbd>Ctrl K</kbd>

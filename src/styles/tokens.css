@@ -940,6 +940,103 @@ textarea.field {
   color: var(--ink-3);
   letter-spacing: 0.03em;
 }
+.rating-num {
+  font-size: 10px;
+  color: var(--accent-deep);
+}
+
+/* 书架筛选 */
+.lib-filters {
+  margin: 0 4px 10px;
+  padding: 8px 8px 9px;
+  border: 1px solid var(--line-2);
+  border-radius: 3px;
+  background: var(--sheet);
+}
+.filter-row {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.filter-row + .filter-row {
+  margin-top: 6px;
+}
+.filter-chip {
+  font-size: 10.5px;
+  color: var(--ink-2);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 1px 8px;
+  background: var(--surface);
+}
+.filter-chip.active {
+  color: var(--accent-deep);
+  border-color: var(--accent);
+  background: var(--accent-wash);
+  font-weight: 600;
+}
+.filter-tag {
+  font-size: 10px;
+  color: var(--ink-3);
+  border: 1px dashed var(--line);
+  border-radius: 3px;
+  padding: 1px 7px;
+  background: none;
+}
+.filter-tag.active {
+  color: var(--accent-deep);
+  border-style: solid;
+  border-color: var(--accent);
+  background: var(--accent-wash);
+}
+.filter-clear {
+  margin-left: auto;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+.filter-clear:hover {
+  color: var(--accent-deep);
+}
+
+/* 书架加载骨架 */
+.skel-item {
+  margin: 0 4px 10px;
+  padding: 12px 10px;
+  border-radius: 3px;
+  border: 1px solid var(--line-2);
+}
+.skel-line {
+  height: 10px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--line-2) 25%, var(--line) 45%, var(--line-2) 65%);
+  background-size: 240% 100%;
+  animation: shimmer 1.2s ease infinite;
+  margin-bottom: 7px;
+}
+@keyframes shimmer {
+  0% {
+    background-position: 120% 0;
+  }
+  100% {
+    background-position: -120% 0;
+  }
+}
+
+/* 评分星 */
+.rate-stars {
+  display: inline-flex;
+  gap: 1px;
+  font-size: 11px;
+  color: var(--ink-3);
+  align-items: center;
+}
+.rate-stars i {
+  cursor: pointer;
+}
+.rate-stars i:hover {
+  color: var(--accent);
+}
 
 /* ============ PDF 阅读器 ============ */
 .sheet.pdf-sheet {
