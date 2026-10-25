@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>文献阅读助手 · 视觉方案总览</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<style>
+:root{
+  --bg:#F6F5F1;--surface:#FFFFFF;--surface-2:#EFEDE7;
+  --ink:#27302A;--ink-2:#6E7A72;--ink-3:#A3ADA5;--line:#E4E4DB;
+  --accent:#2E6E4E;--accent-deep:#235740;--accent-wash:#E7F0EA;
+  --shadow-soft:0 8px 30px rgba(52,66,56,.08);--shadow-pop:0 18px 50px rgba(52,66,56,.14);
+}
+[data-theme="dark"]{
+  --bg:#191D1A;--surface:#222824;--surface-2:#2A312C;
+  --ink:#E8EBE6;--ink-2:#9DAA9F;--ink-3:#6E7972;--line:#333B35;
+  --accent:#5FA382;--accent-deep:#86BF9F;--accent-wash:#28352D;
+  --shadow-soft:0 8px 30px rgba(0,0,0,.35);--shadow-pop:0 18px 50px rgba(0,0,0,.5);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;
+  background:var(--bg);color:var(--ink);min-width:1080px;padding:44px 48px 70px;
+  transition:background .3s,color .3s;
+}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+::selection{background:var(--accent-wash)}
+.page-head{display:flex;align-items:flex-end;margin-bottom:34px}
+h1{font-size:24px;letter-spacing:.01em}
+.page-sub{color:var(--ink-2);font-size:13.5px;margin-top:8px;line-height:1.7}
+.theme-toggle{
+  margin-left:auto;width:38px;height:38px;border-radius:50%;background:var(--surface);
+  border:1px solid var(--line);display:flex;align-items:center;justify-content:center;
+  font-size:16px;color:var(--ink-2);box-shadow:var(--shadow-soft);
+}
+[data-theme="light"] .icon-moon,[data-theme="dark"] .icon-sun{display:none}
+
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
+.card{
+  background:var(--surface);border-radius:18px;border:1.5px solid var(--line);
+  overflow:hidden;box-shadow:var(--shadow-soft);display:flex;flex-direction:column;
+  transition:transform .18s,box-shadow .18s,border-color .18s;
+}
+.card:hover{transform:translateY(-4px);box-shadow:var(--shadow-pop)}
+.card.chosen{border-color:var(--accent)}
+.thumb{height:218px;position:relative;overflow:hidden}
+.card-body{padding:19px 21px 21px;display:flex;flex-direction:column;flex:1}
+.card-name{font-size:17px;font-weight:650;display:flex;align-items:baseline;gap:9px}
+.card-name .en{font-size:11px;color:var(--ink-3);font-weight:400;letter-spacing:.08em}
+.card-vibe{font-size:12.5px;color:var(--ink-2);line-height:1.75;margin-top:9px}
+.card-for{font-size:12px;color:var(--ink-3);margin-top:9px;line-height:1.7}
+.card-for b{color:var(--ink-2);font-weight:600}
+.card-foot{margin-top:auto;padding-top:16px;display:flex;align-items:center;gap:10px}
+.open-btn{
+  display:flex;align-items:center;gap:6px;height:38px;padding:0 18px;border-radius:999px;
+  background:var(--accent);color:#fff;font-size:13px;transition:transform .12s;
+}
+.open-btn:active{transform:scale(.97)}
+.pick-btn{
+  height:38px;padding:0 16px;border-radius:999px;border:1px solid var(--line);
+  color:var(--ink-2);font-size:13px;transition:all .15s;
+}
+.pick-btn:hover{border-color:var(--accent);color:var(--accent-deep)}
+.card.chosen .pick-btn{background:var(--accent-wash);border-color:var(--accent);color:var(--accent-deep)}
+.swatches{display:flex;gap:5px;margin-left:auto}
+.sw{width:14px;height:14px;border-radius:50%;border:1px solid rgba(0,0,0,.08)}
+
+/* 迷你布局示意（纯 CSS 线框） */
+.mini{position:absolute;inset:12px;border-radius:8px;display:flex;gap:5px;padding:6px;font-size:7px}
+.mini .col{border-radius:4px;display:flex;flex-direction:column;gap:4px}
+.mini .bar{border-radius:2.5px}
+/* A 书斋 */
+.mini-a{background:#F5F1E8;border:1px solid #DCD2BC}
+.mini-a .lib{width:22%;background:#F8F4EA;border:1px solid #DCD2BC;padding:4px;gap:3px}
+.mini-a .lib .bar{height:7px;background:#E8E0CE}
+.mini-a .page-area{flex:1;background:#EFEAE0;padding:6px;display:flex;justify-content:center}
+.mini-a .sheet{width:78%;background:#FDFAF3;border:1px solid #E8E0CE;box-shadow:0 2px 6px rgba(39,34,26,.12);padding:6px;display:flex;flex-direction:column;gap:3px}
+.mini-a .sheet .title{height:8px;width:70%;background:#27221A;opacity:.85;align-self:center;margin-bottom:1px}
+.mini-a .sheet .bar{height:4px;background:#E8E0CE}
+.mini-a .sheet .bar.hl{background:#F3E3B6}
+.mini-a .sheet .bar.red{width:30%;background:#B23A24;opacity:.75}
+.mini-a .ai{width:24%;background:#F8F4EA;border:1px solid #DCD2BC;padding:4px;gap:3px}
+.mini-a .ai .bar{height:9px;background:#F6E7E0;border:1px solid rgba(178,58,36,.4)}
+/* B 析仪 */
+.mini-b{background:#E2E7EE;border:1px solid #D5DBE5;flex-direction:column}
+.mini-b .cmd{height:9px;background:#FFFFFF;border:1px solid #D5DBE5;display:flex;align-items:center;padding:0 4px;gap:2px}
+.mini-b .cmd .dot{width:5px;height:5px;border-radius:1px;background:#1D4FD8}
+.mini-b .cmd .bar{height:3px;width:34%;background:#E4E9F0}
+.mini-b .main{flex:1;display:flex;gap:5px}
+.mini-b .rail{width:7%;background:#FFFFFF;border:1px solid #D5DBE5;padding:4px 0;display:flex;flex-direction:column;align-items:center;gap:3px}
+.mini-b .rail i{width:5px;height:5px;border-radius:1.5px;background:#8B97A9;font-style:normal}
+.mini-b .rail i.on{background:#1D4FD8}
+.mini-b .page{flex:1;display:flex;justify-content:center;background:#E2E7EE}
+.mini-b .sheet{width:72%;background:#FFFFFF;border:1px solid #D5DBE5;padding:6px;display:flex;flex-direction:column;gap:3px}
+.mini-b .sheet .title{height:7px;width:64%;background:#111A28;opacity:.85;align-self:center;margin-bottom:1px}
+.mini-b .sheet .bar{height:4px;background:#E4E9F0}
+.mini-b .sheet .cols{flex:1;display:flex;gap:4px}
+.mini-b .sheet .cols .bar{flex:1}
+.mini-b .sheet .focus{width:58%;align-self:center;border:1px solid #1D4FD8;padding:3px;display:flex;flex-direction:column;gap:2px}
+.mini-b .sheet .focus .bar{background:#E9EFFC}
+.mini-b .ai{width:27%;background:#FFFFFF;border:1px solid #D5DBE5;padding:4px;gap:3px}
+.mini-b .ai .bar{height:9px;background:#F4F6F9;border:1px solid #E4E9F0}
+.mini-b .ai .bar.on{background:#1D4FD8}
+.mini-b .status{height:8px;background:#FFFFFF;border:1px solid #D5DBE5;display:flex;align-items:center;padding:0 4px;gap:2px}
+.mini-b .status .bar{width:12%;height:3px;background:#E4E9F0}
+/* C 灯下 */
+.mini-c{background:#F6F5F1;flex-direction:column;align-items:center}
+.mini-c .top{width:100%;display:flex;justify-content:space-between;padding:0 4px 3px}
+.mini-c .top .bar{height:8px;width:20%;border-radius:99px;background:#FFFFFF;border:1px solid #E4E4DB}
+.mini-c .page{width:74%;flex:1;background:#FFFFFF;border-radius:6px;box-shadow:0 4px 10px rgba(52,66,56,.14);padding:7px;display:flex;flex-direction:column;gap:3px}
+.mini-c .page .title{height:8px;width:62%;background:#27302A;opacity:.8;align-self:center;margin-bottom:1px}
+.mini-c .page .bar{height:4px;background:#EFEDE7;border-radius:2px}
+.mini-c .page .bar.green{width:34%;background:#E7F0EA}
+.mini-c .page .note{position:absolute;right:26px;top:56px;width:17%;height:30px;background:#FBF3DF;border-radius:4px;transform:rotate(3deg);box-shadow:0 2px 5px rgba(52,66,56,.12)}
+.mini-c .fab{position:absolute;right:16px;bottom:14px;width:16px;height:16px;border-radius:50%;background:#2E6E4E}
+.mini-c .hud{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);width:26%;height:10px;border-radius:99px;background:#FFFFFF;border:1px solid #E4E4DB}
+
+/* 对比表 */
+.compare{margin-top:44px}
+.compare h2{font-size:16px;margin-bottom:14px}
+table{width:100%;border-collapse:collapse;background:var(--surface);border-radius:14px;overflow:hidden;box-shadow:var(--shadow-soft);font-size:12.5px}
+th,td{padding:11px 16px;text-align:left;border-bottom:1px solid var(--line)}
+tr:last-child td{border-bottom:none}
+th{background:var(--surface-2);color:var(--ink-2);font-weight:600;font-size:12px}
+td:first-child{color:var(--ink-2);width:130px}
+.how{margin-top:34px;background:var(--surface);border-radius:14px;padding:22px 26px;box-shadow:var(--shadow-soft)}
+.how h2{font-size:15px;margin-bottom:10px}
+.how li{color:var(--ink-2);font-size:13px;line-height:2;margin-left:18px}
+.how b{color:var(--ink)}
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <div>
+    <h1>文献阅读助手 · 三套视觉方向</h1>
+    <div class="page-sub">同一份演示内容（Attention Is All You Need 精读场景），三套气质不同的界面。点击卡片右上角按钮打开可交互原型，均可切换明暗（设计以浅色为准，暗色为派生基础版）。</div>
+  </div>
+  <button class="theme-toggle" id="themeBtn" title="切换明暗">
+    <i class="ph ph-sun icon-sun"></i><i class="ph ph-moon icon-moon"></i>
+  </button>
+</div>
+
+<div class="cards">
+  <!-- A -->
+  <div class="card" id="cardA">
+    <div class="thumb"><div class="mini mini-a">
+      <div class="col lib"><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div></div>
+      <div class="col page-area"><div class="col sheet"><div class="title"></div><div class="bar"></div><div class="bar hl"></div><div class="bar red"></div><div class="bar"></div></div></div>
+      <div class="col ai"><div class="bar"></div><div class="bar"></div><div class="bar"></div></div>
+    </div></div>
+    <div class="card-body">
+      <div class="card-name">A · 书斋 <span class="en">THE STUDY</span></div>
+      <div class="card-vibe">宣纸暖白与墨色，朱砂作批注色。AI 如先生朱笔，纸页居中如案头摊开的书。衬线标题，章节用「一二三四」，有书卷气。</div>
+      <div class="card-for"><b>适合：</b>喜欢纸感与人文气质，把阅读当「精读功课」的人；写论文引用批注场景顺手。</div>
+      <div class="card-foot">
+        <button class="open-btn" onclick="window.open('proposal-a.html','_blank')"><i class="ph ph-arrow-square-out"></i>打开原型</button>
+        <button class="pick-btn" data-pick="A">我选这套</button>
+        <div class="swatches"><span class="sw" style="background:#FDFAF3"></span><span class="sw" style="background:#EFEAE0"></span><span class="sw" style="background:#B23A24"></span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- B -->
+  <div class="card" id="cardB">
+    <div class="thumb"><div class="mini mini-b">
+      <div class="cmd"><span class="dot"></span><span class="bar"></span></div>
+      <div class="main">
+        <div class="rail"><i class="on"></i><i></i><i></i><i></i><i></i></div>
+        <div class="page"><div class="sheet">
+          <div class="title"></div><div class="bar"></div>
+          <div class="cols"><div class="bar"></div><div class="bar"></div></div>
+          <div class="focus"><div class="bar"></div><div class="bar"></div></div>
+        </div></div>
+        <div class="ai"><div class="bar on"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div></div>
+      </div>
+      <div class="status"><span class="bar"></span><span class="bar"></span><span class="bar"></span></div>
+    </div></div>
+    <div class="card-body">
+      <div class="card-name">B · 析仪 <span class="en">THE INSTRUMENT</span></div>
+      <div class="card-vibe">冷灰蓝精密工具风，单色电蓝点缀，等宽数字。信息密度最高：图标导航、点阵画布、准星定位、底部状态栏，像一台分析仪器。</div>
+      <div class="card-for"><b>适合：</b>重效率与信息密度的用户；喜欢快捷键、批量管理文献、要快速定位数据的人。</div>
+      <div class="card-foot">
+        <button class="open-btn" onclick="window.open('proposal-b.html','_blank')"><i class="ph ph-arrow-square-out"></i>打开原型</button>
+        <button class="pick-btn" data-pick="B">我选这套</button>
+        <div class="swatches"><span class="sw" style="background:#FFFFFF"></span><span class="sw" style="background:#E2E7EE"></span><span class="sw" style="background:#1D4FD8"></span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- C -->
+  <div class="card" id="cardC">
+    <div class="thumb"><div class="mini mini-c">
+      <div class="top"><div class="bar"></div><div class="bar"></div></div>
+      <div class="page"><div class="title"></div><div class="bar"></div><div class="bar green"></div><div class="bar"></div><div class="bar"></div></div>
+      <div class="note"></div><div class="hud"></div><div class="fab"></div>
+    </div></div>
+    <div class="card-body">
+      <div class="card-name">C · 灯下 <span class="en">THE LAMPLIGHT</span></div>
+      <div class="card-vibe">暖白底、松绿点缀、大圆角柔光，界面几乎隐身，只剩文章本身。AI 藏进右下角悬浮窗，书架收进浮层，页边贴便签。</div>
+      <div class="card-for"><b>适合：</b>以「把论文读完」为第一目标的人；长文沉浸阅读、讨厌侧栏打扰的用户。</div>
+      <div class="card-foot">
+        <button class="open-btn" onclick="window.open('proposal-c.html','_blank')"><i class="ph ph-arrow-square-out"></i>打开原型</button>
+        <button class="pick-btn" data-pick="C">我选这套</button>
+        <div class="swatches"><span class="sw" style="background:#FFFFFF"></span><span class="sw" style="background:#F6F5F1"></span><span class="sw" style="background:#2E6E4E"></span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="compare">
+  <h2>维度对比</h2>
+  <table>
+    <tr><th>维度</th><th>A 书斋</th><th>B 析仪</th><th>C 灯下</th></tr>
+    <tr><td>布局</td><td>书架 / 纸页 / 伴读 三栏并列</td><td>图标栏 / 阅读器 / 分析台 + 状态栏</td><td>全屏文章 + 浮层书架 + 悬浮 AI</td></tr>
+    <tr><td>信息密度</td><td>中</td><td>高</td><td>低</td></tr>
+    <tr><td>字体气质</td><td>衬线标题，人文感</td><td>无衬线 + 等宽数字，工程感</td><td>无衬线大字号，松弛感</td></tr>
+    <tr><td>AI 存在感</td><td>常驻右侧「伴读」面板</td><td>常驻「分析台」+ 数据化指标</td><td>按需唤起，不打扰阅读</td></tr>
+    <tr><td>动效</td><td>3/10，纸页浮起、卡片渐入</td><td>4/10，短促切换、指示器滑动</td><td>4/10，柔开柔合、悬浮窗弹起</td></tr>
+    <tr><td>圆角</td><td>3px 印刷感</td><td>6px 规整</td><td>16px / 胶囊</td></tr>
+  </table>
+</div>
+
+<div class="how">
+  <h2>怎么选</h2>
+  <ul>
+    <li>三套原型均为<b>可交互</b>：可切换明暗、切换 AI 标签页、点击「定位原文」跳转高亮（C 还可打开书架浮层与 AI 悬浮窗）。</li>
+    <li>可以<b>组合</b>：像上次一样，可以选一套主体，融合另一套的局部（例如「C 的阅读沉浸 + B 的分析台」）。</li>
+    <li>选定期望看真实阅读体验的话，优先点开原型，把浏览器窗口拉大到 1200px 以上。</li>
+    <li>原型为桌面布局，正式实现时会补齐窄屏适配。</li>
+  </ul>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+<script>
+const KEY='overview-theme',root=document.documentElement;
+root.dataset.theme=localStorage.getItem(KEY)||'light';
+document.getElementById('themeBtn').addEventListener('click',()=>{
+  root.dataset.theme=root.dataset.theme==='dark'?'light':'dark';
+  localStorage.setItem(KEY,root.dataset.theme);
+});
+/* 标记选择（仅本机记录，最终以聊天确认为准） */
+document.querySelectorAll('.pick-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.card').forEach(c=>c.classList.remove('chosen'));
+    document.getElementById('card'+btn.dataset.pick).classList.add('chosen');
+    btn.textContent='已标记 ✓ 回复我即可';
+  });
+});
+/* 入场（3s 兜底清理） */
+if(window.gsap&&!matchMedia('(prefers-reduced-motion: reduce)').matches){
+  const tl=gsap.timeline({defaults:{ease:'power2.out',duration:.55,clearProps:'all'}});
+  tl.from('.page-head',{y:-12,autoAlpha:0,duration:.4})
+    .from('.card',{y:18,autoAlpha:0,stagger:.09,duration:.55},'-=.2')
+    .from('.compare,.how',{y:14,autoAlpha:0,stagger:.12,duration:.45},'-=.3');
+  setTimeout(()=>{if(window.gsap)gsap.set('.page-head,.card,.compare,.how',{clearProps:'all'})},3000);
+}
+</script>
+</body>
+</html>

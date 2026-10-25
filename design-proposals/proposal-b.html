@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>方案 B · 析仪｜文献阅读助手视觉原型</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<style>
+/* ============ 方案 B「析仪」 tokens ============
+   气质：精密仪器台，冷灰蓝 + 单一电蓝功能色 + 等宽数字
+   圆角系统：6px（全局唯一）
+   动效刻度：4/10，短促干脆，仅反馈与层级 */
+:root{
+  --bg:#E9EDF2;
+  --canvas:#E2E7EE;          /* 阅读画布（点阵网格底） */
+  --surface:#FFFFFF;
+  --surface-2:#F4F6F9;
+  --ink:#111A28;
+  --ink-2:#57657B;
+  --ink-3:#8B97A9;
+  --line:#D5DBE5;
+  --line-2:#E4E9F0;
+  --accent:#1D4FD8;
+  --accent-deep:#153DA8;
+  --accent-wash:#E9EFFC;
+  --ok:#0E7C6B;
+  --hl:#FCEFC3;
+  --mono:"Cascadia Code",Consolas,"Courier New",monospace;
+  --shadow-card:0 1px 2px rgba(17,26,40,.06);
+  --shadow-pop:0 8px 28px rgba(17,26,40,.14);
+}
+[data-theme="dark"]{
+  --bg:#0E141F;
+  --canvas:#0B101A;
+  --surface:#161E2C;
+  --surface-2:#1C2536;
+  --ink:#E5EAF2;
+  --ink-2:#9AA7BA;
+  --ink-3:#66748A;
+  --line:#2A3549;
+  --line-2:#232D40;
+  --accent:#5B84F0;
+  --accent-deep:#8FACF6;
+  --accent-wash:#1D2A4A;
+  --ok:#3DBBA2;
+  --hl:#4E4327;
+  --shadow-card:0 1px 2px rgba(0,0,0,.35);
+  --shadow-pop:0 8px 28px rgba(0,0,0,.5);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{
+  font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;
+  background:var(--bg);color:var(--ink);
+  min-width:1180px;overflow:hidden auto;
+  transition:background .3s,color .3s;font-size:13px;
+}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+::selection{background:var(--accent-wash)}
+.mono{font-family:var(--mono)}
+
+/* ============ 顶部命令栏 ============ */
+.cmdbar{
+  height:48px;display:flex;align-items:center;gap:12px;
+  padding:0 14px;background:var(--surface);border-bottom:1px solid var(--line);
+}
+.logo{display:flex;align-items:center;gap:9px}
+.logo-mark{
+  width:26px;height:26px;background:var(--accent);color:#fff;border-radius:6px;
+  display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;
+}
+.logo-name{font-size:14px;font-weight:600;letter-spacing:.02em}
+.logo-ver{font-family:var(--mono);font-size:10px;color:var(--ink-3);border:1px solid var(--line);border-radius:4px;padding:1px 5px}
+.gsearch{
+  flex:1;max-width:460px;display:flex;align-items:center;gap:8px;
+  background:var(--surface-2);border:1px solid var(--line);border-radius:6px;
+  padding:6px 10px;color:var(--ink-3);font-size:12.5px;
+}
+.gsearch kbd{margin-left:auto;font-family:var(--mono);font-size:10.5px;border:1px solid var(--line);border-radius:4px;padding:1px 6px}
+.cmdbar-right{margin-left:auto;display:flex;align-items:center;gap:4px}
+.icon-btn{
+  width:32px;height:32px;border-radius:6px;display:flex;align-items:center;justify-content:center;
+  font-size:16px;color:var(--ink-2);transition:background .15s;
+}
+.icon-btn:hover{background:var(--surface-2);color:var(--ink)}
+[data-theme="light"] .icon-moon,[data-theme="dark"] .icon-sun{display:none}
+
+/* ============ 主体 ============ */
+.layout{display:grid;grid-template-columns:52px 1fr 372px;height:calc(100vh - 48px - 30px)}
+
+/* ---- 左：图标导航 ---- */
+.rail{background:var(--surface);border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;padding-top:10px;gap:4px}
+.rail-btn{
+  width:38px;height:38px;border-radius:6px;display:flex;align-items:center;justify-content:center;
+  font-size:19px;color:var(--ink-3);position:relative;transition:all .15s;
+}
+.rail-btn:hover{color:var(--ink);background:var(--surface-2)}
+.rail-btn.active{color:var(--accent);background:var(--accent-wash)}
+.rail-btn.active::before{
+  content:"";position:absolute;left:-7px;top:8px;bottom:8px;width:3px;
+  background:var(--accent);border-radius:0 3px 3px 0;
+}
+.rail-spacer{flex:1}
+
+/* ---- 中：阅读区 ---- */
+.reader{display:flex;flex-direction:column;overflow:hidden;background:var(--canvas)}
+.reader-toolbar{
+  height:42px;display:flex;align-items:center;gap:2px;padding:0 12px;
+  background:var(--surface);border-bottom:1px solid var(--line);
+}
+.tb-btn{width:30px;height:30px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:15px;color:var(--ink-2)}
+.tb-btn:hover{background:var(--surface-2);color:var(--ink)}
+.tb-sep{width:1px;height:18px;background:var(--line);margin:0 8px}
+.tb-page{font-family:var(--mono);font-size:12px;color:var(--ink-2);padding:0 8px;min-width:74px;text-align:center}
+.tb-zoom{font-family:var(--mono);font-size:12px;color:var(--ink-2);min-width:52px;text-align:center}
+.tb-right{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--ink-3)}
+.tb-kbd{font-family:var(--mono);font-size:10.5px;border:1px solid var(--line);border-radius:4px;padding:1px 6px;color:var(--ink-3)}
+
+.canvas-scroll{
+  flex:1;overflow-y:auto;padding:30px 32px 80px;scrollbar-width:thin;scrollbar-color:var(--line) transparent;
+  background-image:radial-gradient(var(--line) 1px, transparent 1px);background-size:22px 22px;
+}
+.page{
+  width:min(820px,100%);margin:0 auto;background:var(--surface);
+  border:1px solid var(--line);border-radius:6px;box-shadow:var(--shadow-pop);
+  padding:46px 58px 52px;position:relative;
+}
+.page-head{border-bottom:1px solid var(--line-2);padding-bottom:18px;margin-bottom:20px}
+.page-venue{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);letter-spacing:.14em;margin-bottom:10px}
+.page-title{font-size:21px;line-height:1.35;font-weight:650;letter-spacing:-.01em}
+.page-authors{font-size:11.5px;color:var(--ink-2);margin-top:8px}
+.abs-row{display:flex;gap:18px;margin-bottom:22px}
+.abs-label{font-size:10px;letter-spacing:.18em;color:var(--ink-3);white-space:nowrap;padding-top:3px}
+.abs-text{font-size:12px;line-height:1.75;color:var(--ink-2);text-align:justify}
+.cols-2{column-count:2;column-gap:26px;column-rule:1px solid var(--line-2)}
+.body-p{font-size:11.5px;line-height:1.8;color:var(--ink-2);text-align:justify;margin-bottom:11px;break-inside:avoid}
+.fig-box-b{
+  border:1px solid var(--line);border-radius:6px;background:var(--surface-2);
+  padding:16px;margin:6px 0 14px;break-inside:avoid;
+}
+.fig-b-inner{display:flex;justify-content:center;gap:34px}
+.fig-col{display:flex;flex-direction:column;gap:5px;width:148px}
+.fig-col-name{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;color:var(--ink-3);text-align:center}
+.fig-cell{border:1px solid var(--ink-3);border-radius:4px;padding:5px 4px;text-align:center;font-size:10px;color:var(--ink-2);background:var(--surface)}
+.fig-cell.attn{border-color:var(--accent);color:var(--accent-deep);background:var(--accent-wash)}
+.fig-b-cap{font-family:var(--mono);font-size:10px;color:var(--ink-3);text-align:center;margin-top:10px}
+.formula-b{
+  font-family:var(--serif,Georgia),Georgia,serif;font-size:15px;text-align:center;
+  padding:14px;border:1px dashed var(--line);border-radius:6px;margin:6px 0 14px;break-inside:avoid;
+}
+/* 准星角标：AI 定位的目标段落 */
+.focus-p{position:relative;padding:8px 10px;margin:2px -10px 12px;border-radius:6px}
+.focus-p .corner{position:absolute;width:10px;height:10px;border:0 solid var(--accent);opacity:.9}
+.focus-p .c1{top:0;left:0;border-top-width:2px;border-left-width:2px}
+.focus-p .c2{top:0;right:0;border-top-width:2px;border-right-width:2px}
+.focus-p .c3{bottom:0;left:0;border-bottom-width:2px;border-left-width:2px}
+.focus-p .c4{bottom:0;right:0;border-bottom-width:2px;border-right-width:2px}
+.focus-tag{
+  position:absolute;top:-9px;left:10px;background:var(--accent);color:#fff;
+  font-family:var(--mono);font-size:9.5px;padding:1px 7px;border-radius:3px;letter-spacing:.08em;
+}
+.hl{background:linear-gradient(transparent 28%, var(--hl) 28%)}
+.hl.flash{animation:flashbg 1.5s ease}
+@keyframes flashbg{0%,55%{background:var(--accent-wash)}100%{background:linear-gradient(transparent 28%,var(--hl) 28%)}}
+/* 页面 HUD */
+.hud{
+  position:sticky;bottom:16px;width:max-content;margin:20px auto 0;
+  display:flex;align-items:center;background:var(--surface);border:1px solid var(--line);
+  border-radius:6px;box-shadow:var(--shadow-pop);padding:4px 6px;gap:2px;z-index:5;
+}
+.hud .tb-page{min-width:64px}
+
+/* ---- 右：AI 分析台 ---- */
+.dock{background:var(--surface);border-left:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden}
+.dock-head{padding:13px 14px 11px;border-bottom:1px solid var(--line)}
+.dock-head-row{display:flex;align-items:center;gap:8px}
+.dock-title{font-size:13.5px;font-weight:600}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--ok)}
+.model-chip{
+  margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--ink-2);
+  border:1px solid var(--line);border-radius:4px;padding:2px 7px;background:var(--surface-2);
+}
+.dock-sub{font-size:11px;color:var(--ink-3);margin-top:6px;display:flex;gap:12px}
+.dock-sub b{font-family:var(--mono);font-weight:500;color:var(--ink-2)}
+.seg{display:flex;gap:3px;padding:10px 12px 0}
+.seg-btn{
+  flex:1;padding:7px 0;font-size:12.5px;color:var(--ink-2);border-radius:6px;
+  background:var(--surface-2);transition:all .15s;
+}
+.seg-btn.active{background:var(--accent);color:#fff;font-weight:600}
+.dock-body{flex:1;overflow-y:auto;padding:12px;scrollbar-width:thin}
+.dock-pane{display:none}
+.dock-pane.active{display:block}
+
+.x-card{border:1px solid var(--line);border-radius:6px;padding:11px 12px;margin-bottom:9px;background:var(--surface)}
+.x-head{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.x-idx{font-family:var(--mono);font-size:10px;color:var(--accent);border:1px solid var(--accent);border-radius:4px;padding:1px 6px}
+.x-name{font-size:12.5px;font-weight:600}
+.x-meter{margin-left:auto;display:flex;align-items:center;gap:6px}
+.x-meter .bar{width:44px;height:3px;background:var(--line-2);border-radius:2px;overflow:hidden}
+.x-meter .bar i{display:block;height:100%;background:var(--accent)}
+.x-meter span{font-family:var(--mono);font-size:9.5px;color:var(--ink-3)}
+.x-text{font-size:12px;line-height:1.7;color:var(--ink-2)}
+.x-refs{display:flex;gap:5px;margin-top:8px;flex-wrap:wrap}
+.ref-chip{
+  font-family:var(--mono);font-size:9.5px;color:var(--ink-2);
+  border:1px solid var(--line);border-radius:4px;padding:2px 7px;cursor:pointer;transition:all .15s;
+}
+.ref-chip:hover{border-color:var(--accent);color:var(--accent-deep);background:var(--accent-wash)}
+
+.chat-row{display:flex;gap:9px;margin-bottom:12px}
+.chat-av{width:24px;height:24px;border-radius:6px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px}
+.chat-av.user{background:var(--surface-2);color:var(--ink-2);border:1px solid var(--line)}
+.chat-av.ai{background:var(--accent-wash);color:var(--accent-deep);border:1px solid var(--accent)}
+.chat-body{flex:1;min-width:0}
+.chat-meta{font-family:var(--mono);font-size:9.5px;color:var(--ink-3);margin-bottom:3px}
+.chat-txt{font-size:12px;line-height:1.65;color:var(--ink-2);background:var(--surface-2);border:1px solid var(--line-2);border-radius:6px;padding:8px 10px}
+.chat-txt.by-user{background:var(--accent-wash);border-color:var(--accent)}
+.chat-ref{font-family:var(--mono);font-size:10px;color:var(--accent-deep);margin-top:5px;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+
+.note-row{display:flex;gap:9px;padding:9px 2px;border-bottom:1px solid var(--line-2)}
+.note-row:last-child{border-bottom:none}
+.note-loc{font-family:var(--mono);font-size:9.5px;color:var(--accent);white-space:nowrap;padding-top:2px}
+.note-txt{font-size:12px;line-height:1.65;color:var(--ink-2)}
+
+.dock-input{border-top:1px solid var(--line);padding:10px 12px;background:var(--surface)}
+.quick-chips{display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap}
+.qchip{
+  font-size:11px;color:var(--ink-2);border:1px solid var(--line);border-radius:6px;
+  padding:4px 10px;transition:all .15s;
+}
+.qchip:hover{border-color:var(--accent);color:var(--accent-deep);background:var(--accent-wash)}
+.input-row{display:flex;gap:8px}
+.input-row input{
+  flex:1;border:1px solid var(--line);border-radius:6px;background:var(--surface-2);
+  padding:8px 11px;font-size:12.5px;color:var(--ink);outline:none;font-family:inherit;
+}
+.input-row input:focus{border-color:var(--accent)}
+.input-row input::placeholder{color:var(--ink-3)}
+.send-btn{
+  width:36px;border-radius:6px;background:var(--accent);color:#fff;font-size:15px;
+  display:flex;align-items:center;justify-content:center;
+}
+.send-btn:active{transform:translateY(1px)}
+
+/* ---- 底部状态栏 ---- */
+.statusbar{
+  height:30px;background:var(--surface);border-top:1px solid var(--line);
+  display:flex;align-items:center;padding:0 14px;gap:0;
+  font-family:var(--mono);font-size:10.5px;color:var(--ink-3);
+}
+.statusbar .st{padding:0 10px;border-right:1px solid var(--line-2)}
+.statusbar .st:last-child{border-right:none}
+.statusbar .st b{font-weight:500;color:var(--ink-2)}
+.statusbar .st-ok{color:var(--ok)}
+.proto-badge{
+  position:fixed;left:14px;bottom:40px;font-size:10.5px;color:var(--ink-3);
+  background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:3px 9px;z-index:9;
+}
+</style>
+</head>
+<body>
+
+<header class="cmdbar" data-anim="cmdbar">
+  <div class="logo">
+    <div class="logo-mark">析</div>
+    <span class="logo-name">析仪</span>
+    <span class="logo-ver">PR</span>
+  </div>
+  <div class="gsearch"><i class="ph ph-magnifying-glass"></i>跨文献全文检索<span>（标题 / 摘要 / 笔记 / 正文）</span><kbd>Ctrl K</kbd></div>
+  <div class="cmdbar-right">
+    <button class="icon-btn" title="设置"><i class="ph ph-gear-six"></i></button>
+    <button class="icon-btn" id="themeBtn" title="切换明暗">
+      <i class="ph ph-sun icon-sun"></i><i class="ph ph-moon icon-moon"></i>
+    </button>
+  </div>
+</header>
+
+<div class="layout">
+  <!-- 左：图标导航 -->
+  <nav class="rail" data-anim="rail">
+    <button class="rail-btn active" title="文献库"><i class="ph ph-books"></i></button>
+    <button class="rail-btn" title="阅读器"><i class="ph ph-book-open"></i></button>
+    <button class="rail-btn" title="笔记"><i class="ph ph-notebook"></i></button>
+    <button class="rail-btn" title="文献对比"><i class="ph ph-columns"></i></button>
+    <button class="rail-btn" title="术语表"><i class="ph ph-text-aa"></i></button>
+    <div class="rail-spacer"></div>
+    <button class="rail-btn" title="设置"><i class="ph ph-sliders-horizontal"></i></button>
+  </nav>
+
+  <!-- 中：阅读区 -->
+  <section class="reader">
+    <div class="reader-toolbar" data-anim="toolbar">
+      <button class="tb-btn" title="上一页"><i class="ph ph-arrow-left"></i></button>
+      <span class="tb-page">01 / 11</span>
+      <button class="tb-btn" title="下一页"><i class="ph ph-arrow-right"></i></button>
+      <span class="tb-sep"></span>
+      <button class="tb-btn" title="缩小"><i class="ph ph-minus"></i></button>
+      <span class="tb-zoom">100%</span>
+      <button class="tb-btn" title="放大"><i class="ph ph-plus"></i></button>
+      <button class="tb-btn" title="适应宽度"><i class="ph ph-arrows-out-simple"></i></button>
+      <span class="tb-sep"></span>
+      <button class="tb-btn" title="双栏/单栏"><i class="ph ph-columns"></i></button>
+      <div class="tb-right">
+        <span>选中文字后</span><span class="tb-kbd">Ctrl J</span><span>解释</span>
+      </div>
+    </div>
+
+    <div class="canvas-scroll">
+      <article class="page" data-anim="page">
+        <div class="page-head">
+          <div class="page-venue">NEURIPS 2017 · ARXIV:1706.03762 · PDF P.1</div>
+          <h1 class="page-title">Attention Is All You Need</h1>
+          <div class="page-authors">Vaswani 等 8 人 · Google Brain / Google Research</div>
+        </div>
+
+        <div class="abs-row">
+          <div class="abs-label">ABSTRACT</div>
+          <div class="abs-text">主流序列转换模型基于复杂的循环或卷积网络。我们提出 Transformer，一种仅依赖注意力机制、完全摒弃循环与卷积的新架构。在两项机器翻译任务上取得更优质量的同时具备更强并行性，训练时间大幅缩短。</div>
+        </div>
+
+        <div class="fig-box-b">
+          <div class="fig-b-inner">
+            <div class="fig-col">
+              <div class="fig-col-name">ENCODER ×6</div>
+              <div class="fig-cell">Feed Forward</div>
+              <div class="fig-cell attn">Multi-Head Attention</div>
+              <div class="fig-cell">Input Embedding</div>
+            </div>
+            <div class="fig-col">
+              <div class="fig-col-name">DECODER ×6</div>
+              <div class="fig-cell">Linear + Softmax</div>
+              <div class="fig-cell attn">Masked MHA</div>
+              <div class="fig-cell attn">Cross Attention</div>
+              <div class="fig-cell">Output Embedding</div>
+            </div>
+          </div>
+          <div class="fig-b-cap">FIG.1 TRANSFORMER ARCHITECTURE（点击图表可请求 AI 解读）</div>
+        </div>
+
+        <div class="formula-b">Attention(Q, K, V) = softmax( QK<sup>T</sup> / √d<sub>k</sub> ) V</div>
+
+        <div class="cols-2">
+          <p class="body-p">Recurrent models factor computation along the symbol position of input and output sequences, which inherently precludes parallelization within training examples.</p>
+          <p class="focus-p">
+            <span class="corner c1"></span><span class="corner c2"></span><span class="corner c3"></span><span class="corner c4"></span>
+            <span class="focus-tag">EXTRACT-01</span>
+            <span class="body-p" style="margin:0">In this work we proposed the Transformer, <span class="hl" id="loc1">dispensing with recurrence and convolutions entirely</span>. Experiments show superior quality with significantly less training time.</span>
+          </p>
+          <p class="body-p">On the WMT14 English-to-German translation task, the big transformer model improves over the previously best reported results by more than 2.0 BLEU, reaching a new state-of-the-art BLEU score of 28.4.</p>
+        </div>
+      </article>
+
+      <div class="hud" data-anim="hud">
+        <button class="tb-btn" title="上一页"><i class="ph ph-arrow-left"></i></button>
+        <span class="tb-page">01 / 11</span>
+        <button class="tb-btn" title="下一页"><i class="ph ph-arrow-right"></i></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 右：AI 分析台 -->
+  <aside class="dock" data-anim="dock">
+    <div class="dock-head">
+      <div class="dock-head-row">
+        <span class="dot"></span>
+        <span class="dock-title">AI 分析台</span>
+        <span class="model-chip">deepseek-v4.1-flash</span>
+      </div>
+      <div class="dock-sub"><span>上下文 <b>12.4k / 128k</b></span><span>本次会话 <b>6 轮</b></span></div>
+    </div>
+    <div class="seg">
+      <button class="seg-btn active" data-tab="extract">要素提取</button>
+      <button class="seg-btn" data-tab="chat">对话</button>
+      <button class="seg-btn" data-tab="notes">笔记</button>
+    </div>
+    <div class="dock-body">
+      <div class="dock-pane active" data-pane="extract">
+        <div class="x-card" data-anim="card">
+          <div class="x-head"><span class="x-idx">E1</span><span class="x-name">研究问题</span>
+            <span class="x-meter"><span class="bar"><i style="width:96%"></i></span><span>96%</span></span></div>
+          <div class="x-text">能否完全依赖注意力机制完成序列建模，彻底摆脱循环与卷积结构？</div>
+          <div class="x-refs"><span class="ref-chip" data-loc="loc1">P.1 摘要</span><span class="ref-chip">P.1 §1</span></div>
+        </div>
+        <div class="x-card" data-anim="card">
+          <div class="x-head"><span class="x-idx">E2</span><span class="x-name">核心方法</span>
+            <span class="x-meter"><span class="bar"><i style="width:92%"></i></span><span>92%</span></span></div>
+          <div class="x-text">Transformer 编码器-解码器架构，核心为缩放点积注意力与多头注意力。</div>
+          <div class="x-refs"><span class="ref-chip">P.3 §3.2</span><span class="ref-chip">P.4 §3.2.2</span></div>
+        </div>
+        <div class="x-card" data-anim="card">
+          <div class="x-head"><span class="x-idx">E3</span><span class="x-name">实验结果</span>
+            <span class="x-meter"><span class="bar"><i style="width:88%"></i></span><span>88%</span></span></div>
+          <div class="x-text">WMT14 英德 BLEU 28.4、英法 41.8，训练成本显著低于此前最优模型。</div>
+          <div class="x-refs"><span class="ref-chip">P.5 表 2</span><span class="ref-chip">P.8 表 3</span></div>
+        </div>
+        <div class="x-card" data-anim="card">
+          <div class="x-head"><span class="x-idx">E4</span><span class="x-name">主要贡献</span>
+            <span class="x-meter"><span class="bar"><i style="width:100%"></i></span><span>100%</span></span></div>
+          <div class="x-text">移除 RNN 与 CNN；提出多头注意力；训练高度并行，开启大规模预训练路径。</div>
+          <div class="x-refs"><span class="ref-chip" data-loc="loc1">P.1 摘要</span></div>
+        </div>
+      </div>
+      <div class="dock-pane" data-pane="chat">
+        <div class="chat-row">
+          <div class="chat-av user"><i class="ph ph-user"></i></div>
+          <div class="chat-body">
+            <div class="chat-meta">USER · 14:32</div>
+            <div class="chat-txt by-user">多头注意力为什么需要多个头？</div>
+          </div>
+        </div>
+        <div class="chat-row">
+          <div class="chat-av ai"><i class="ph ph-atom"></i></div>
+          <div class="chat-body">
+            <div class="chat-meta">AI · 14:32 · 1.2s</div>
+            <div class="chat-txt">单一注意力头只能在一种表示子空间里建立关联。多头把 Q、K、V 投影到多个子空间，分别捕捉语法、位置、指代等不同关系再拼接融合。本文使用 8 个头。</div>
+            <div class="chat-ref" data-loc="loc1">定位原文 · P.4 表 1</div>
+          </div>
+        </div>
+      </div>
+      <div class="dock-pane" data-pane="notes">
+        <div class="note-row"><span class="note-loc">P.4 §3.2.1</span><span class="note-txt">缩放因子 √d<sub>k</sub>：点积随维度增大而变大，softmax 进入饱和区导致梯度消失，除以 √d<sub>k</sub> 将方差拉回 1。</span></div>
+        <div class="note-row"><span class="note-loc">P.5 表 2</span><span class="note-txt">对比基线 GNMT：BLEU 28.4 vs 24.6，且单机 3.5 天训完，成本数据适合写进综述。</span></div>
+        <div class="note-row"><span class="note-loc">P.8 §5.4</span><span class="note-txt">注意力可视化（图 3-5）可作组会展示素材，远程依赖的例子记得标注页码。</span></div>
+      </div>
+    </div>
+    <div class="dock-input">
+      <div class="quick-chips">
+        <button class="qchip">解释选中段落</button>
+        <button class="qchip">解释公式 (1)</button>
+        <button class="qchip">解读图 1</button>
+        <button class="qchip">总结本章</button>
+      </div>
+      <div class="input-row">
+        <input placeholder="就当前论文提问">
+        <button class="send-btn" title="发送"><i class="ph ph-paper-plane-right"></i></button>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<footer class="statusbar" data-anim="status">
+  <span class="st">库 <b>6</b> 篇</span>
+  <span class="st">标注 <b>12</b></span>
+  <span class="st">笔记 <b>8</b></span>
+  <span class="st">模型 <b>deepseek-v4.1-flash</b></span>
+  <span class="st">延迟 <b>342ms</b></span>
+  <span class="st"><span class="st-ok">● </span>API 已连接</span>
+</footer>
+
+<div class="proto-badge">方案 B「析仪」· 原型示意，数据为演示内容</div>
+
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+<script>
+const KEY='xiyi-theme',root=document.documentElement;
+root.dataset.theme=localStorage.getItem(KEY)||'light';
+document.getElementById('themeBtn').addEventListener('click',()=>{
+  root.dataset.theme=root.dataset.theme==='dark'?'light':'dark';
+  localStorage.setItem(KEY,root.dataset.theme);
+});
+/* 分段切换 + 指示动画 */
+const segBtns=document.querySelectorAll('.seg-btn');
+segBtns.forEach(btn=>btn.addEventListener('click',()=>{
+  segBtns.forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.dock-pane').forEach(p=>p.classList.remove('active'));
+  const pane=document.querySelector(`[data-pane="${btn.dataset.tab}"]`);
+  pane.classList.add('active');
+  if(window.gsap&&!matchMedia('(prefers-reduced-motion: reduce)').matches){
+    gsap.from(btn,{scale:.92,duration:.18,ease:'power2.out',clearProps:'all'});
+    gsap.from(pane.children,{y:7,autoAlpha:0,duration:.28,stagger:.04,ease:'power2.out',clearProps:'all'});
+  }
+}));
+/* 定位 */
+function locate(id){
+  const el=document.getElementById(id);if(!el)return;
+  el.scrollIntoView({behavior:'smooth',block:'center'});
+  el.classList.remove('flash');void el.offsetWidth;el.classList.add('flash');
+}
+document.querySelectorAll('[data-loc]').forEach(b=>b.addEventListener('click',()=>locate(b.dataset.loc)));
+/* 入场（短促 + 3s 兜底清理） */
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+if(window.gsap&&!reduce){
+  const tl=gsap.timeline({defaults:{ease:'power2.out',duration:.35,clearProps:'all'}});
+  tl.from('[data-anim="cmdbar"]',{y:-10,autoAlpha:0,duration:.3})
+    .from('[data-anim="rail"] .rail-btn',{x:-8,autoAlpha:0,stagger:.04},'-=.15')
+    .from('[data-anim="toolbar"]',{y:-8,autoAlpha:0,duration:.25},'-=.2')
+    .from('[data-anim="page"]',{y:14,autoAlpha:0,duration:.4},'-=.15')
+    .from('[data-anim="dock"]',{x:12,autoAlpha:0,duration:.35},'<')
+    .from('[data-anim="card"]',{y:8,autoAlpha:0,stagger:.04},'-=.25')
+    .from('[data-anim="hud"]',{y:8,autoAlpha:0,duration:.25},'-=.3')
+    .from('[data-anim="status"]',{y:8,autoAlpha:0,duration:.25},'-=.28');
+  setTimeout(()=>{if(window.gsap)gsap.set('[data-anim],[data-anim] .rail-btn',{clearProps:'all'})},3000);
+}
+</script>
+</body>
+</html>
