@@ -2,6 +2,7 @@
 import { computed, nextTick, watch } from 'vue'
 import { ref } from 'vue'
 import NoteDialog from '../common/NoteDialog.vue'
+import { buildReadingCard, copyText, downloadText, safeFileName } from '../../services/export'
 import { useAiStore } from '../../stores/ai'
 import { useLibraryStore } from '../../stores/library'
 import { useNotesStore, type Note } from '../../stores/notes'
@@ -136,6 +137,24 @@ async function saveEditNote(data: { content: string; quote: string }) {
 
 function jumpNote(n: Note) {
   if (n.page > 0) void reader.jumpWithHighlight(n.page, n.quote)
+}
+
+/* ---------- 精读卡片导出（Step 12） ---------- */
+const exportMsg = ref('')
+
+async function exportCard(kind: 'copy' | 'download') {
+  if (!paper.value) return
+  const exRow = ex.value.data
+    ? { ...ex.value.data, degraded: ex.value.degraded }
+    : null
+  const md = buildReadingCard(paper.value, exRow, notesList.value)
+  if (kind === 'download') {
+    downloadText(`精读卡片_${safeFileName(paper.value.title)}.md`, md)
+    exportMsg.value = '已下载'
+  } else {
+    exportMsg.value = (await copyText(md)) ? '已复制到剪贴板' : '复制失败（浏览器限制），请用下载'
+  }
+  setTimeout(() => (exportMsg.value = ''), 2000)
 }
 
 function fmtNoteTime(ts: number): string {
@@ -281,9 +300,16 @@ function jumpChatRef(content: string, refPage: number) {
             <span v-else class="muted">
               {{ ex.fromCache ? '缓存' : '已生成' }}<template v-if="cachedTimeText"> · {{ cachedTimeText }}</template> · {{ ex.model }}
             </span>
+            <button class="tag-add" data-testid="btn-export-copy" title="复制 Markdown 精读卡片" @click="exportCard('copy')">
+              <i class="ph ph-copy-simple" style="font-size: 9px"></i> 复制卡片
+            </button>
+            <button class="tag-add" data-testid="btn-export-download" title="下载 .md 精读卡片" @click="exportCard('download')">
+              <i class="ph ph-download-simple" style="font-size: 9px"></i> 下载卡片
+            </button>
             <button class="tag-add" data-testid="btn-regen" title="重新生成（不计缓存）" @click="runExtract(true)">
               <i class="ph ph-arrow-counter-clockwise" style="font-size: 9px"></i> 重新生成
             </button>
+            <span v-if="exportMsg" class="export-msg" data-testid="export-msg">{{ exportMsg }}</span>
           </div>
         </template>
       </div>
@@ -541,5 +567,11 @@ function jumpChatRef(content: string, refPage: number) {
 }
 .extract-foot .tag-add {
   margin-left: auto;
+}
+.extract-foot .tag-add + .tag-add {
+  margin-left: 0;
+}
+.export-msg {
+  color: var(--accent-deep);
 }
 </style>

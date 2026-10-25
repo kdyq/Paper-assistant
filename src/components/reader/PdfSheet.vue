@@ -256,7 +256,7 @@ watch(
   async () => {
     const quote = reader.highlightQuote
     if (!quote) return
-    // 等渲染完成后高亮（跳页时会有一次重渲染）
+    // 等渲染完成后高亮（跳页时会有一次重渲染；跨视图跳转时组件可能晚于信号挂载）
     const t0 = Date.now()
     while (reader.rendering && Date.now() - t0 < 3000) {
       await new Promise((r) => setTimeout(r, 120))
@@ -265,6 +265,7 @@ watch(
     if (textEl.value) flashQuoteInTextLayer(textEl.value, quote)
     reader.highlightQuote = ''
   },
+  { immediate: true },
 )
 
 const selWrapStyle = computed(() => ({

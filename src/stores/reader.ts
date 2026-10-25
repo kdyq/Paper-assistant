@@ -25,6 +25,7 @@ export const useReaderStore = defineStore('reader', {
     highlightQuote: '',
     highlightTick: 0, // 每次递增触发一次文本层高亮
     regionMode: false, // 框选图表模式（Step 11）
+    pendingPage: null as number | null, // 文档未就绪时暂存的跳页目标
   }),
   actions: {
     async open(paperId: string) {
@@ -45,13 +46,23 @@ export const useReaderStore = defineStore('reader', {
         this.pageNo = Math.min(Math.max(1, paper.lastPage), doc.numPages)
         this.zoom = 1
         this.ready = true
+        // 文档未就绪期间的跳页请求（如全文检索命中跳转）
+        if (this.pendingPage) {
+          const target = this.pendingPage
+          this.pendingPage = null
+          await this.goTo(target)
+        }
       } catch (e) {
         this.error = e instanceof Error ? e.message : String(e)
       }
     },
 
     async goTo(page: number) {
-      if (!this.totalPages) return
+      if (!this.totalPages) {
+        // 文档尚未就绪：暂存目标，open() 完成后补跳
+        this.pendingPage = page
+        return
+      }
       const n = Math.min(Math.max(1, page), this.totalPages)
       if (n === this.pageNo) return
       this.pageNo = n
