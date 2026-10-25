@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { nextTick, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import CompanionPanel from './components/companion/CompanionPanel.vue'
 import ShelfPanel from './components/shelf/ShelfPanel.vue'
@@ -9,8 +9,9 @@ import { safeTimeline } from './utils/anim'
 const settings = useSettingsStore()
 const route = useRoute()
 
-onMounted(() => {
+onMounted(async () => {
   settings.initTheme()
+  await nextTick() // 等首屏内容就绪，避免 GSAP 对不存在目标告警
   // 入场编排（§3.4：from + clearProps 双兜底，reduced-motion 不动）
   safeTimeline((tl) => {
     tl.from('[data-anim="topbar"]', { y: -10, autoAlpha: 0, duration: 0.32 })
