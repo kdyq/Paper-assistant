@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { watch } from 'vue'
-import PageHud from '../components/reader/PageHud.vue'
 import PdfSheet from '../components/reader/PdfSheet.vue'
 import { useLibraryStore } from '../stores/library'
 import { useReaderStore } from '../stores/reader'
@@ -44,6 +43,5 @@ watch(
   <!-- 阅读中 -->
   <template v-else>
     <PdfSheet />
-    <PageHud />
   </template>
 </template>

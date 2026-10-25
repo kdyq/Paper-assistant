@@ -2,6 +2,7 @@
 import { nextTick, onBeforeUnmount, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import CompanionPanel from './components/companion/CompanionPanel.vue'
+import PageHud from './components/reader/PageHud.vue'
 import ShelfPanel from './components/shelf/ShelfPanel.vue'
 import { useReaderStore } from './stores/reader'
 import { useSettingsStore } from './stores/settings'
@@ -83,8 +84,12 @@ onBeforeUnmount(() => {
     <aside class="library">
       <ShelfPanel />
     </aside>
-    <main class="reading">
-      <router-view />
+    <main class="reading-col">
+      <div class="reading">
+        <router-view />
+      </div>
+      <!-- 独立 HUD 底栏：不随内容滚动、不遮挡正文 -->
+      <PageHud v-if="route.name === 'reader'" />
     </main>
     <CompanionPanel v-if="route.name === 'reader'" />
   </div>
