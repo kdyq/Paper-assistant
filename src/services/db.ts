@@ -144,6 +144,11 @@ export async function dbDelete(store: StoreName, key: IDBValidKey): Promise<void
   await run(store, 'readwrite', (s) => s.delete(key))
 }
 
+/** 清空整个 store（备份还原前用） */
+export async function dbClear(store: StoreName): Promise<void> {
+  await run(store, 'readwrite', (s) => s.clear())
+}
+
 /** 按索引取全部匹配（如某文献的逐页文本/笔记） */
 export async function dbGetAllByIndex<T>(
   store: StoreName,

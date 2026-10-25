@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
+import { buildBackup, downloadBackup, restoreBackup, type BackupFile } from '../services/backup'
 import { AiError, chat, testConnection, type TestResult } from '../services/ai'
 import { useSettingsStore } from '../stores/settings'
 
@@ -78,6 +79,46 @@ function setTheme(t: 'light' | 'dark') {
   settings.theme = t
   settings.applyTheme()
 }
+
+/* 数据备份（Step 16） */
+const backupMsg = ref('')
+const importing = ref(false)
+const fileInput = ref<HTMLInputElement | null>(null)
+
+async function runExport() {
+  backupMsg.value = '打包中…'
+  try {
+    const backup = await buildBackup()
+    downloadBackup(backup)
+    backupMsg.value = '备份已下载（含全部文献/笔记/问答/提取与 PDF 原件）'
+  } catch (e) {
+    backupMsg.value = `备份失败：${e instanceof Error ? e.message : String(e)}`
+  }
+  setTimeout(() => (backupMsg.value = ''), 3500)
+}
+
+function pickImport() {
+  fileInput.value?.click()
+}
+
+async function onImportFile(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  importing.value = true
+  backupMsg.value = '还原中…'
+  try {
+    const text = await file.text()
+    const backup = JSON.parse(text) as BackupFile
+    const count = await restoreBackup(backup)
+    backupMsg.value = `还原完成，共写入 ${count} 条记录，即将刷新…`
+    setTimeout(() => window.location.reload(), 1200)
+  } catch (err) {
+    backupMsg.value = `还原失败：${err instanceof Error ? err.message : String(err)}`
+    importing.value = false
+  }
+}
 </script>
 
 <template>
@@ -124,9 +165,9 @@ function setTheme(t: 'light' | 'dark') {
 
       <div class="form-row" style="align-items: center">
         <label>代理</label>
-        <label class="chk" style="display: flex; align-items: center; gap: 7px; cursor: pointer">
+        <label class="chk" style="display: flex; align-items: center; gap: 7px; cursor: pointer; flex: 1; min-width: 0">
           <input v-model="proxy" type="checkbox" data-testid="chk-proxy" />
-          <span style="font-size: 12px; color: var(--ink-2)">启用本地开发代理（/ai）——浏览器直连被 CORS 拦截时使用</span>
+          <span style="font-size: 12px; color: var(--ink-2); line-height: 1.7">启用本地开发代理（/ai）——浏览器直连被 CORS 拦截时使用</span>
         </label>
       </div>
 
@@ -163,6 +204,24 @@ function setTheme(t: 'light' | 'dark') {
         <button class="btn" :class="{ 'btn-primary': settings.theme === 'light' }" data-testid="btn-theme-light" @click="setTheme('light')">浅色 · 书斋</button>
         <button class="btn" :class="{ 'btn-primary': settings.theme === 'dark' }" data-testid="btn-theme-dark" @click="setTheme('dark')">暗色 · 灯下</button>
       </div>
+
+      <div class="sec-label"><span class="sec-num">四</span>数据备份</div>
+      <p style="font-size: 11.5px; color: var(--ink-3); line-height: 1.8; margin: 0 0 8px">
+        备份包含全部文献（含 PDF 原件）、笔记、问答、提取结果与术语表，为一个 JSON 文件。<br />
+        导入备份会<b style="color: var(--accent-deep)">清空当前全部数据</b>后整库还原，请先确认已导出。
+      </p>
+      <div class="dialog-actions" style="justify-content: flex-start; margin-top: 0">
+        <button class="btn" data-testid="btn-backup-export" @click="runExport">
+          <i class="ph ph-download-simple"></i> 导出备份
+        </button>
+        <button class="btn" :disabled="importing" data-testid="btn-backup-import" @click="pickImport">
+          <i class="ph ph-upload-simple"></i> 导入备份
+        </button>
+      </div>
+      <div v-if="backupMsg" class="notice-bar" data-testid="backup-msg" style="margin-top: 10px">
+        <i class="ph ph-info"></i><span>{{ backupMsg }}</span>
+      </div>
+      <input ref="fileInput" type="file" accept=".json,application/json" hidden data-testid="backup-file-input" @change="onImportFile" />
     </template>
 
     <div class="page-foot"><span>书斋 · 设置</span><span>密钥只存本机，不入导出</span></div>
