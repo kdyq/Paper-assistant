@@ -9,6 +9,19 @@ pdfjs.GlobalWorkerOptions.workerSrc = workerUrl
 
 export type PdfDoc = pdfjs.PDFDocumentProxy
 
+/** CJK CID 字体所需的外部 CMap 与标准字体（public/pdfjs/，随应用分发，不走 CDN） */
+const PDFJS_ASSETS = {
+  cMapUrl: '/pdfjs/cmaps/',
+  cMapPacked: true,
+  standardFontDataUrl: '/pdfjs/standard_fonts/',
+}
+
+export async function openPdf(data: ArrayBuffer): Promise<PdfDoc> {
+  // pdfjs 会 transfer/detach 传入的 ArrayBuffer，调用方需要保留原数据时须先复制
+  const task = pdfjs.getDocument({ data, ...PDFJS_ASSETS })
+  return task.promise
+}
+
 /** 已打开文档缓存（pdfjs 文档重开销大，按 paperId 复用；销毁须走 loadingTask.destroy） */
 const docCache = new Map<string, { task: pdfjs.PDFDocumentLoadingTask; doc: PdfDoc }>()
 
@@ -16,7 +29,7 @@ export async function getPaperDoc(paperId: string, blob: Blob): Promise<PdfDoc> 
   const hit = docCache.get(paperId)
   if (hit && !hit.task.destroyed) return hit.doc
   const buf = await blob.arrayBuffer()
-  const task = pdfjs.getDocument({ data: buf })
+  const task = pdfjs.getDocument({ data: buf, ...PDFJS_ASSETS })
   const doc = await task.promise
   docCache.set(paperId, { task, doc })
   return doc
@@ -26,12 +39,6 @@ export function dropPaperDoc(paperId: string) {
   const hit = docCache.get(paperId)
   if (hit && !hit.task.destroyed) void hit.task.destroy()
   docCache.delete(paperId)
-}
-
-export async function openPdf(data: ArrayBuffer): Promise<PdfDoc> {
-  // pdfjs 会 transfer/detach 传入的 ArrayBuffer，调用方需要保留原数据时须先复制
-  const task = pdfjs.getDocument({ data })
-  return task.promise
 }
 
 export async function getPdfMetadata(doc: PdfDoc): Promise<{ title?: string; author?: string }> {

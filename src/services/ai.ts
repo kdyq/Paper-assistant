@@ -25,6 +25,8 @@ export class AiError extends Error {
 export interface ChatOptions {
   stream?: boolean
   onDelta?: (text: string) => void
+  /** 思考型模型 reasoning 阶段的增量（内容不直接展示，用于进度反馈） */
+  onReasoning?: (text: string) => void
   temperature?: number
   maxTokens?: number
   signal?: AbortSignal
@@ -140,6 +142,7 @@ export async function chat(messages: ChatMessage[], opts: ChatOptions = {}): Pro
           opts.onDelta?.(delta.content)
         } else if (delta?.reasoning_content) {
           reasoning += delta.reasoning_content
+          opts.onReasoning?.(delta.reasoning_content)
         }
       } catch {
         // 半包/心跳行，忽略
