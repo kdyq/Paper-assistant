@@ -2,6 +2,7 @@
 import { computed, nextTick, watch } from 'vue'
 import { ref } from 'vue'
 import NoteDialog from '../common/NoteDialog.vue'
+import { buildAnkiCards, buildAnkiDeck, buildAnkiTsv } from '../../services/anki'
 import { buildReadingCard, copyText, downloadText, safeFileName } from '../../services/export'
 import { useAiStore } from '../../stores/ai'
 import { useLibraryStore } from '../../stores/library'
@@ -118,6 +119,23 @@ function runGlossary(regen = false) {
 
 function jumpGlossary(item: { name: string; page: number }) {
   void reader.jumpWithHighlight(item.page, item.name)
+}
+
+/* Anki 导出（Step 15） */
+const ankiMsg = ref('')
+
+async function exportAnki(kind: 'deck' | 'tsv') {
+  if (!paper.value) return
+  const cards = buildAnkiCards(paper.value, ex.value.data ? { ...ex.value.data, degraded: ex.value.degraded } : null, gl.value.items, notesList.value)
+  if (!cards.length) {
+    ankiMsg.value = '暂无可导出的卡片'
+  } else if (kind === 'deck') {
+    downloadText(`Anki_${safeFileName(paper.value.title)}.txt`, buildAnkiDeck(cards, `书斋::${paper.value.title}`))
+    ankiMsg.value = `已下载 ${cards.length} 张卡`
+  } else {
+    ankiMsg.value = (await copyText(buildAnkiTsv(cards))) ? `已复制 ${cards.length} 张卡` : '复制失败'
+  }
+  setTimeout(() => (ankiMsg.value = ''), 2600)
 }
 
 function sendFromInput() {
@@ -472,9 +490,16 @@ function jumpChatRef(content: string, refPage: number) {
               {{ gl.items.length }} 条{{ gl.fromCache ? ' · 缓存' : ' · 已生成' }}
               <template v-if="gl.degraded"> · 解析降级</template>
             </span>
+            <button class="tag-add" data-testid="btn-anki-deck" title="下载 Anki 牌组文本（含四要素/术语/笔记卡）" @click="exportAnki('deck')">
+              <i class="ph ph-download-simple" style="font-size: 9px"></i> Anki 牌组
+            </button>
+            <button class="tag-add" data-testid="btn-anki-tsv" title="复制 TSV" @click="exportAnki('tsv')">
+              <i class="ph ph-copy-simple" style="font-size: 9px"></i> 复制 TSV
+            </button>
             <button class="tag-add" data-testid="btn-glossary-regen" @click="runGlossary(true)">
               <i class="ph ph-arrow-counter-clockwise" style="font-size: 9px"></i> 重新生成
             </button>
+            <span v-if="ankiMsg" class="export-msg" data-testid="anki-msg">{{ ankiMsg }}</span>
           </div>
         </template>
       </div>
